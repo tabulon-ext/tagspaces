@@ -315,5 +315,6 @@
   "showHideDirectories": "Show / hide directories",
   "sort": "Sort",
   "thirdPartyLibs": "Third Party Libraries",
+  "welcomeContent": "Start using TagSpaces by choosing a location from your locale storage.",
   "-": "-"
 }

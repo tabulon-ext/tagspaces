@@ -19,7 +19,7 @@
 
 import React, { Component } from 'react';
 import Joyride from 'react-joyride';
-import i18n from './../services/i18n';
+import i18n from '../services/i18n';
 
 class AppOnboarding extends Component {
   state = {
@@ -27,11 +27,16 @@ class AppOnboarding extends Component {
     steps: [
       {
         target: '[data-tid=createNewLocation]',
-        content: i18n.t('ns.common:welcomeContent'),
+        content: i18n.t('welcomeContent'),
         placement: 'bottom',
       },
       {
         target: '[data-tid=aboutTagSpaces]',
+        content: 'Hello world',
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=settings]',
         content: 'Hello world',
         placement: 'bottom',
       },
