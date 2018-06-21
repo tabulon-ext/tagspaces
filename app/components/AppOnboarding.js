@@ -24,23 +24,6 @@ import i18n from '../services/i18n';
 class AppOnboarding extends Component {
   state = {
     run: false,
-    steps: [
-      {
-        target: '[data-tid=createNewLocation]',
-        content: i18n.t('welcomeContent'),
-        placement: 'bottom',
-      },
-      {
-        target: '[data-tid=aboutTagSpaces]',
-        content: 'Hello world',
-        placement: 'bottom',
-      },
-      {
-        target: '[data-tid=settings]',
-        content: 'Hello world',
-        placement: 'bottom',
-      },
-    ]
   };
 
   componentDidMount() {
@@ -56,7 +39,44 @@ class AppOnboarding extends Component {
   };
 
   render() {
-    const { steps, run } = this.state;
+    const { run } = this.state;
+    const steps = [
+      {
+        target: '[data-tid=aboutTagSpaces]',
+        content: i18n.t('welcomeTitle'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=aboutTagSpaces]',
+        content: i18n.t('aboutTitle'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=createNewLocation]',
+        content: i18n.t('createNewLocationContent'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=locationList]',
+        content: i18n.t('folderNavigatorTitle'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=tagLibrary]',
+        content: i18n.t('tagGroupsContent'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=settings]',
+        content: i18n.t('settingsdialogContent'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=perspectiveManager]',
+        content: i18n.t('perspectiveviewContent'),
+        placement: 'bottom',
+      },
+    ];
 
     return (
       <Joyride
