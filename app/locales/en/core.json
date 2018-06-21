@@ -322,5 +322,7 @@
   "tagGroupsContent": "Clicking on this button will open your tag library. For your convenience, it is divided in tag groups containing the single tags.",
   "settingsdialogContent": "This button will open the settings dialog of the app, where you can change language of the user interface or manage the file associations.",
   "perspectiveviewContent": "This is the area where you can browse later your files. TagSpaces supports some different views on your files, which are called here perspectives. Every perspective has some emphasis, e.g. the default list perspective is suitable for file management operations.",
+  "searchareaContent": "Here you can activate the search area of the application. Selecting the search field will explain to you the search syntax. Please note that currently the search engine is ignoring the content of the files.",
+  "thankyouContent": "... and thank you for your attention.",
   "-": "-"
 }

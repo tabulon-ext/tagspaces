@@ -74,7 +74,7 @@ class WelcomePanel extends React.Component<Props, State> {
     const { classes } = this.props;
     return (
       <div className={classes.mainPanel}>
-        <div className={classes.slogan}>
+        <div data-tid="welcomePanel" className={classes.slogan}>
           <img src="assets/images/welcome-logo.png" alt="Organize your files" />
         </div>
       </div>

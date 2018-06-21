@@ -24,12 +24,16 @@ import i18n from '../services/i18n';
 class AppOnboarding extends Component {
   state = {
     run: false,
+    continuous: false,
+    showProgress: false,
   };
 
   componentDidMount() {
     setTimeout(() => {
       this.setState({
         run: true,
+        continuous: true,
+        showProgress: true,
       });
     }, 1000);
   }
@@ -40,11 +44,13 @@ class AppOnboarding extends Component {
 
   render() {
     const { run } = this.state;
+    const { continuous } = this.state;
+    const { showProgress } = this.state;
     const steps = [
       {
-        target: '[data-tid=aboutTagSpaces]',
+        target: '[data-tid=welcomePanel]',
         content: i18n.t('welcomeTitle'),
-        placement: 'bottom',
+        placement: 'center',
       },
       {
         target: '[data-tid=aboutTagSpaces]',
@@ -76,12 +82,24 @@ class AppOnboarding extends Component {
         content: i18n.t('perspectiveviewContent'),
         placement: 'bottom',
       },
+      {
+        target: '[data-tid=search]',
+        content: i18n.t('searchareaContent'),
+        placement: 'bottom',
+      },
+      {
+        target: '[data-tid=welcomePanel]',
+        content: i18n.t('thankyouContent'),
+        placement: 'center',
+      },
     ];
 
     return (
       <Joyride
         steps={steps}
         run={run}
+        continuous={continuous}
+        showProgress={showProgress}
         callback={this.callback}
       />
     );
