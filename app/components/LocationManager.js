@@ -123,6 +123,12 @@ class LocationManager extends React.Component<Props, State> {
     isSelectDirectoryDialogOpened: false
   };
 
+  componentDidMount() {
+    this.props.locations.map(entry => {
+      this.props.loadSubDirectories(entry);
+      return entry;
+    });
+  }
   /* componentWillReceiveProps(nextProps) {
     if (this.props.locations !== nextProps.locations) {
       nextProps.locations.map(entry => {

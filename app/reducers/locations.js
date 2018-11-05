@@ -184,8 +184,10 @@ export const actions = {
     dispatch: (actions: Object) => void,
   ) => {
     dispatch(actions.getLocationsTree(location, deepLevel)).then(children => {
-      // eslint-disable-next-line no-param-reassign
-      location.children = children;
+      if (location.uuid !== children.uuid) {
+        // eslint-disable-next-line no-param-reassign
+        location.children = children;
+      }
       dispatch(actions.editLocation(location));
       return true;
     })
