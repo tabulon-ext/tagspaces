@@ -309,8 +309,7 @@ class LocationManager extends React.Component<Props, State> {
     } else { */
     this.props.loadDirectoryContent(location.path || location.paths[0]);
     this.loadSubDirectories(location, 1);
-    this.props.openLocation(location.uuid);
-    // this.props.setCurrentLocationId(location.uuid);
+    this.props.openLocation(location.uuid); // -> this.props.setCurrentLocationId(location.uuid);
     this.state.locationRootPath = location.path || location.paths[0];
     // }
     /* const grid = document.querySelector('[data-tid="perspectiveGridFileTable"]');
@@ -375,18 +374,26 @@ class LocationManager extends React.Component<Props, State> {
     </div>
   ); */
 
-  renderNameColumnAction = (field, item, key) => {
-    /* const children = (
-      <label>
-        <input type="checkbox" />
-        {field}
-      </label>
-    ); */
-    const obj = {
-      children: field,
+  renderNameColumnAction = (field, location, key) => {
+    const children = (
+      <span>
+        <FolderIcon style={{ marginTop: 0, marginBottom: -8 }} className={this.props.classes.icon} />
+        <span style={{ fontSize: 15 }}>{field}</span>
+        <IconButton
+          style={{ float: 'right', paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 }}
+          aria-label={i18n.t('core:options')}
+          aria-haspopup="true"
+          data-tid={'locationMoreButton_' + field.name}
+          onClick={event => this.handleLocationContextMenuClick(event, location)}
+        >
+          <MoreVertIcon />
+        </IconButton>
+      </span>
+    );
+    return {
+      children,
       props: {},
-    };
-    return obj; // (<span>{ name }</span>);
+    }; // (<span>{ name }</span>);
   };
 
   handleCellClick = (record, index) => ({
