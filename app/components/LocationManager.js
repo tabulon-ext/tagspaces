@@ -18,6 +18,8 @@
  */
 
 import React from 'react';
+import Table from 'rc-table';
+import 'rc-table/assets/index.css';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import { withStyles } from '@material-ui/core/styles';
@@ -67,6 +69,7 @@ type Props = {
   locations: Array<Location>,
   perspectives: Array<Object>,
   currentLocationId: string,
+  loadSubDirectories: (path: string) => void,
   loadDirectoryContent: (path: string) => void,
   openLocation: (path: string) => void,
   openFileNatively: (path: string) => void,
@@ -119,6 +122,17 @@ class LocationManager extends React.Component<Props, State> {
     isCreateDirectoryDialogOpened: false,
     isSelectDirectoryDialogOpened: false
   };
+
+  /* componentWillReceiveProps(nextProps) {
+    if (this.props.locations !== nextProps.locations) {
+      nextProps.locations.map(entry => {
+        if (this.state.locationRootPath === entry.path || this.state.locationRootPath === entry.paths[0]) {
+          console.log('componentWillReceiveProps');
+          this.props.loadSubDirectories(entry);
+        }
+      });
+    }
+  } */
 
   handleCloseDialogs = () => {
     this.setState({
@@ -249,17 +263,18 @@ class LocationManager extends React.Component<Props, State> {
 
   handleLocationClick = (location: Location) => {
     if (location.uuid === this.props.currentLocationId) {
-      this.props.loadDirectoryContent(location.paths[0]);
+      this.props.loadDirectoryContent(location.path || location.paths[0]);
     } else {
+      this.props.loadSubDirectories(location, 1);
       this.props.openLocation(location.uuid);
-      this.state.locationRootPath = location.paths[0];
+      this.state.locationRootPath = location.path || location.paths[0];
     }
-    const grid = document.querySelector('[data-tid="perspectiveGridFileTable"]');
+    /* const grid = document.querySelector('[data-tid="perspectiveGridFileTable"]');
     const firstGridItem = grid.querySelector('div');
 
     if (isObj(firstGridItem)) {
       firstGridItem.scrollIntoView({ top: 0 });
-    }
+    } */
   };
 
   reloadDirectory = () => {
@@ -272,7 +287,7 @@ class LocationManager extends React.Component<Props, State> {
   // <Tooltip id="tooltip-icon" title={i18n.t('core:moreOperations')} placement="bottom"></Tooltip>
   renderLocation = (location: Location) => (
     <ListItem
-      data-tid={'location_' + location.name.replace(/ /g,'_')}
+      data-tid={'location_' + location.name.replace(/ /g, '_')}
       className={
         this.props.currentLocationId === location.uuid
           ? this.props.classes.listItemSelected
@@ -305,8 +320,90 @@ class LocationManager extends React.Component<Props, State> {
     </ListItem>
   );
 
+  /* renderExtColumnAction = () => (
+    <div>
+      <Checkbox
+        checked={this.state.checkBox}
+        onChange={(event, checked) => this.setState({ checkBox: checked })}
+        tabIndex={-1}
+        disableRipple
+      />
+    </div>
+  ); */
+
+  renderNameColumnAction = (field, item, key) => {
+    /* const children = (
+      <label>
+        <input type="checkbox" />
+        {field}
+      </label>
+    ); */
+    const obj = {
+      children: field,
+      props: {},
+    };
+    return obj; // (<span>{ name }</span>);
+  };
+
+  handleCellClick = (record, index) => ({
+    onContextMenu: (e) => {
+      this.handleFileContextMenu(e, record.path);
+    },
+    onClick: () => {
+      this.setState({ checkBox: true });
+    },
+    onDoubleClick: (e) => {
+      this.onRowClick(record, index, e);
+    }
+  });
+
+  onExpand = (expanded, record) => {
+    // console.log('onExpand', expanded + JSON.stringify(record));
+    if (expanded) {
+      this.handleLocationClick(record);
+    }
+  };
+
+  expandedRowRender = (record, index, indent, expanded) => (<p>extra: {record.name}</p>);
+
+  onRowClick = (record, index, event) => {
+    console.log(`Click nth(${index}) row of parent, record.name: ${record.name}`);
+    // See https://facebook.github.io/react/docs/events.html for original click event details.
+    if (event.shiftKey) {
+      console.log('Shift + mouse click triggered.');
+    }
+  };
+
   render() {
     const classes = this.props.classes;
+    const columns = [
+      {
+        title: undefined,
+        dataIndex: 'name',
+        key: 'name',
+        width: '80%',
+        render: this.renderNameColumnAction,
+        onCell: this.handleCellClick,
+      }
+    ];
+
+    /* function CustomExpandIcon(props) {
+      let text;
+      if (props.expanded) {
+        text = '&#8679; collapse';
+      } else {
+        text = '&#8681; expand';
+      }
+      return (
+        <a
+          className="expand-row-icon"
+          onClick={e => props.onExpand(props.record, e)}
+          dangerouslySetInnerHTML={{ __html: text }}
+          style={{ color: 'blue', cursor: 'pointer' }}
+        />
+      );
+    } */
+
     return (
       <div className={classes.panel} style={this.props.style}>
         <div className={classes.toolbar}>
@@ -431,7 +528,7 @@ class LocationManager extends React.Component<Props, State> {
               <ListItemText inset primary={i18n.t('core:closeLocation')} />
             </MenuItem>
           </Menu>
-          <List
+          {/* <List
             className={classes.locationListArea}
             data-tid="locationList"
             style={{
@@ -440,7 +537,22 @@ class LocationManager extends React.Component<Props, State> {
             }}
           >
             {this.props.locations.map(this.renderLocation)}
-          </List>
+          </List> */}
+          <Table
+            // defaultExpandAllRows
+            // className={classes.locationListArea}
+            className="table"
+            rowKey="uuid"
+            data={this.props.locations}
+            columns={columns}
+            // expandedRowRender={this.expandedRowRender}
+            onExpand={this.onExpand}
+            // expandIcon={CustomExpandIcon}
+            // expandIconAsCell
+            /* onRow={(record, index) => ({
+              onClick: this.onRowClick.bind(null, record, index),
+            })} */
+          />
         </div>
         <DirectoryMenu
           open={this.state.directoryContextMenuOpened}

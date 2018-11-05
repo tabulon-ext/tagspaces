@@ -21,6 +21,8 @@ import uuidv1 from 'uuid';
 import { immutablySwapItems } from '../utils/misc';
 import PlatformIO from '../services/platform-io';
 import { actions as AppActions } from '../reducers/app';
+import AppConfig from '../config';
+import { enhanceEntry } from '../services/utils-io';
 
 export const types = {
   ADD_LOCATION: 'APP/ADD_LOCATION',
@@ -33,13 +35,14 @@ export const types = {
 export type Location = {
   uuid: string,
   name: string,
-  paths: Array<string>,
+  paths: Array<string>, // todo change this to string
   perspective?: string, // id of the perspective
   creationDate?: string,
   isDefault: boolean,
   isReadOnly?: boolean,
   watchForChanges?: boolean,
-  persistIndex?: boolean
+  persistIndex?: boolean,
+  children?: Array<Location>
 };
 
 export const initialState = [];
@@ -176,7 +179,87 @@ export const actions = {
   deleteLocation: (location: Location) => ({
     type: types.REMOVE_LOCATION,
     location
-  })
+  }),
+  loadSubDirectories: (location: Location, deepLevel: number) => (
+    dispatch: (actions: Object) => void,
+  ) => {
+    dispatch(actions.getLocationsTree(location, deepLevel)).then(children => {
+      // eslint-disable-next-line no-param-reassign
+      location.children = children;
+      dispatch(actions.editLocation(location));
+      return true;
+    })
+      .catch(error => {
+        console.log('loadSubDirectories', error);
+      });
+    /* console.log('loadSubDirectories');
+    const { settings } = getState();
+    return PlatformIO.listDirectoryPromise(location.path || location.paths[0], false)
+      .then(dirEntries => {
+        const directoryContent = [];
+        dirEntries.map(entry => {
+          if (
+            !settings.showUnixHiddenEntries &&
+            entry.name === AppConfig.metaFolder
+          ) {
+            return true;
+          }
+          const enhancedEntry = enhanceEntry(entry);
+          if (!enhancedEntry.isFile) {
+            directoryContent.push(enhancedEntry);
+          }
+          return true;
+        });
+        if (directoryContent.length > 0) {
+          // eslint-disable-next-line no-param-reassign
+          location.children = directoryContent;
+          dispatch(actions.editLocation(location));
+          if (deepLevel > 0) {
+            directoryContent.map(directory => dispatch(actions.loadSubDirectories(directory, deepLevel - 1)));
+          }
+        }
+        return dirEntries;
+      })
+      .catch(error => {
+        console.log('loadSubDirectories', error);
+      }); */
+  },
+  getLocationsTree: (location: Location, deepLevel: number) => (
+    dispatch: (actions: Object) => void,
+    getState: () => Object
+  ) => {
+    const { settings } = getState();
+    return PlatformIO.listDirectoryPromise(location.path || location.paths[0], false)
+      .then(dirEntries => {
+        const directoryContent = [];
+        dirEntries.map(entry => {
+          if (
+            !settings.showUnixHiddenEntries &&
+            entry.name === AppConfig.metaFolder
+          ) {
+            return true;
+          }
+          const enhancedEntry = enhanceEntry(entry);
+          if (!enhancedEntry.isFile) {
+            directoryContent.push(enhancedEntry);
+          }
+          return true;
+        });
+        if (directoryContent.length > 0) {
+          // eslint-disable-next-line no-param-reassign
+          location.children = directoryContent;
+          if (deepLevel > 0) {
+            const promisesArr = [];
+            directoryContent.map(directory => promisesArr.push(dispatch(actions.getLocationsTree(directory, deepLevel - 1))));
+            return Promise.all(promisesArr);
+          }
+        }
+        return location;
+      })
+      .catch(error => {
+        console.log('getLocationsTree', error);
+      });
+  },
 };
 
 // Selectors
