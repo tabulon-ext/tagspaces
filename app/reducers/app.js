@@ -109,6 +109,13 @@ export type OpenedEntry = {
   tags?: Array<Tag>
 };
 
+export type SubFolder = {
+  uuid: string,
+  name: string,
+  paths: string,
+  children?: Array<SubFolder>
+};
+
 export const initialState = {
   isLoading: false,
   error: null,
@@ -313,8 +320,8 @@ export default (state: Object = initialState, action: Object) => {
   }
   case types.UPDATE_THUMB_URLS: {
     const dirEntries = [...state.currentDirectoryEntries];
-    for (let entry of dirEntries) {
-      for (let tmbUrl of action.tmbURLs) {
+    for (const entry of dirEntries) {
+      for (const tmbUrl of action.tmbURLs) {
         if (entry.path === tmbUrl.filePath) {
           entry.thumbPath = tmbUrl.tmbPath;
           break;
@@ -622,7 +629,7 @@ export const actions = {
     //     actions.showNotification('Please first open a folder!', 'warning', true)
     //   );
     // } else {
-      dispatch(actions.toggleSelectDirectoryDialog());
+    dispatch(actions.toggleSelectDirectoryDialog());
     // }
   },
   toggleAboutDialog: () => ({ type: types.TOGGLE_ABOUT_DIALOG }),
@@ -1049,7 +1056,7 @@ export const actions = {
     dispatch: (actions: Object) => void,
     getState: () => Object
   ) => {
-    const currentEntries = getState().app.currentDirectoryEntries;
+    const currentEntries = getState().app.currentDirectoryEntries; // TODO filter
     const lastSelectedEntry = getState().app.lastSelectedEntry;
     let filePath = pivotFilePath;
     if (!filePath) {
@@ -1228,6 +1235,57 @@ export const actions = {
       );
       return true;
     }); */
+  },
+  /* loadSubDirectories: (location: SubFolder, deepLevel: number) => (
+    dispatch: (actions: Object) => void,
+  ) => {
+    dispatch(actions.getLocationsTree(location, deepLevel)).then(children => {
+      if (location.uuid !== children.uuid) {
+        // eslint-disable-next-line no-param-reassign
+        location.children = children;
+      }
+      dispatch(actions.editLocation(location));
+      return true;
+    })
+      .catch(error => {
+        console.log('loadSubDirectories', error);
+      });
+  }, */
+  getDirectoriesTree: (location: SubFolder, deepLevel: number) => (
+    dispatch: (actions: Object) => void,
+    getState: () => Object
+  ) => {
+    const { settings } = getState();
+    return PlatformIO.listDirectoryPromise(location.path || location.paths[0], false)
+      .then(dirEntries => {
+        const directoryContent = [];
+        dirEntries.map(entry => {
+          if (
+            !settings.showUnixHiddenEntries &&
+            entry.name === AppConfig.metaFolder
+          ) {
+            return true;
+          }
+          const enhancedEntry = enhanceEntry(entry);
+          if (!enhancedEntry.isFile) {
+            directoryContent.push(enhancedEntry);
+          }
+          return true;
+        });
+        if (directoryContent.length > 0) {
+          // eslint-disable-next-line no-param-reassign
+          location.children = directoryContent;
+          if (deepLevel > 0) {
+            const promisesArr = [];
+            directoryContent.map(directory => promisesArr.push(dispatch(actions.getDirectoriesTree(directory, deepLevel - 1))));
+            return Promise.all(promisesArr);
+          }
+        }
+        return location;
+      })
+      .catch(error => {
+        console.log('getDirectoriesTree', error);
+      });
   }
 };
 

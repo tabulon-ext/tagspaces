@@ -58,7 +58,7 @@ import {
   getLocations,
   type Location
 } from '../reducers/locations';
-import { actions as AppActions, getCurrentLocationId } from '../reducers/app';
+import { actions as AppActions, getDirectoryContent, SubFolder } from '../reducers/app';
 import { getPerspectives } from '../reducers/settings';
 import i18n from '../services/i18n';
 import { isObj } from '../utils/misc';
@@ -69,9 +69,10 @@ type Props = {
   locations: Array<Location>,
   perspectives: Array<Object>,
   currentLocationId: string,
-  loadSubDirectories: (path: string) => void,
+  getDirectoriesTree: (path: string, deepLevel: number) => void,
   loadDirectoryContent: (path: string) => void,
   openLocation: (path: string) => void,
+  setCurrentLocationId: (path: string) => void,
   openFileNatively: (path: string) => void,
   openDirectory: (path: string) => void,
   createDirectoryIndex: (path: string) => void,
@@ -120,15 +121,50 @@ class LocationManager extends React.Component<Props, State> {
     isEditLocationDialogOpened: false,
     isDeleteLocationDialogOpened: false,
     isCreateDirectoryDialogOpened: false,
-    isSelectDirectoryDialogOpened: false
+    isSelectDirectoryDialogOpened: false,
+    dirs: this.props.locations
   };
 
   componentDidMount() {
-    this.props.locations.map(entry => {
-      this.props.loadSubDirectories(entry);
+    this.state.dirs.map(entry => {
+      this.loadSubDirectories(entry, 0);
       return entry;
     });
   }
+
+  mergeDirs = (folder: SubFolder) => {
+    let indexForEditing = -1;
+    this.state.dirs.forEach((dir, index) => {
+      if (dir.uuid === folder.uuid) {
+        indexForEditing = index;
+      }
+    });
+    if (indexForEditing >= 0) {
+      this.setState({
+        dirs: [
+          ...this.state.dirs.slice(0, indexForEditing),
+          { ...this.state.dirs[indexForEditing], ...folder },
+          ...this.state.dirs.slice(indexForEditing + 1)
+        ]
+      });
+    } else {
+      // TODO loop children
+    }
+  };
+
+  loadSubDirectories = (folder: SubFolder, deepLevel: number) => {
+    this.props.getDirectoriesTree(folder, deepLevel).then(children => {
+      if (folder.uuid !== children.uuid) {
+      // eslint-disable-next-line no-param-reassign
+        folder.children = children;
+      }
+      this.mergeDirs(folder);
+      return true;
+    })
+      .catch(error => {
+        console.log('loadSubDirectories', error);
+      });
+  };
   /* componentWillReceiveProps(nextProps) {
     if (this.props.locations !== nextProps.locations) {
       nextProps.locations.map(entry => {
@@ -268,13 +304,15 @@ class LocationManager extends React.Component<Props, State> {
   };
 
   handleLocationClick = (location: Location) => {
-    if (location.uuid === this.props.currentLocationId) {
+    /* if (this.props.directoryContent && location.uuid === this.props.currentLocationId) {
       this.props.loadDirectoryContent(location.path || location.paths[0]);
-    } else {
-      this.props.loadSubDirectories(location, 1);
-      this.props.openLocation(location.uuid);
-      this.state.locationRootPath = location.path || location.paths[0];
-    }
+    } else { */
+    this.props.loadDirectoryContent(location.path || location.paths[0]);
+    this.loadSubDirectories(location, 1);
+    this.props.openLocation(location.uuid);
+    // this.props.setCurrentLocationId(location.uuid);
+    this.state.locationRootPath = location.path || location.paths[0];
+    // }
     /* const grid = document.querySelector('[data-tid="perspectiveGridFileTable"]');
     const firstGridItem = grid.querySelector('div');
 
@@ -356,11 +394,12 @@ class LocationManager extends React.Component<Props, State> {
       this.handleFileContextMenu(e, record.path);
     },
     onClick: () => {
-      this.setState({ checkBox: true });
+      // this.setState({ checkBox: true });
+      this.onRowClick(record, index);
     },
-    onDoubleClick: (e) => {
+    /* onDoubleClick: (e) => {
       this.onRowClick(record, index, e);
-    }
+    } */
   });
 
   onExpand = (expanded, record) => {
@@ -372,12 +411,9 @@ class LocationManager extends React.Component<Props, State> {
 
   expandedRowRender = (record, index, indent, expanded) => (<p>extra: {record.name}</p>);
 
-  onRowClick = (record, index, event) => {
+  onRowClick = (record, index) => {
+    this.handleLocationClick(record);
     console.log(`Click nth(${index}) row of parent, record.name: ${record.name}`);
-    // See https://facebook.github.io/react/docs/events.html for original click event details.
-    if (event.shiftKey) {
-      console.log('Shift + mouse click triggered.');
-    }
   };
 
   render() {
@@ -549,7 +585,7 @@ class LocationManager extends React.Component<Props, State> {
             // className={classes.locationListArea}
             className="table"
             rowKey="uuid"
-            data={this.props.locations}
+            data={this.state.dirs}
             columns={columns}
             // expandedRowRender={this.expandedRowRender}
             onExpand={this.onExpand}
@@ -582,8 +618,9 @@ class LocationManager extends React.Component<Props, State> {
 function mapStateToProps(state) {
   return {
     locations: getLocations(state),
-    currentLocationId: getCurrentLocationId(state),
-    perspectives: getPerspectives(state)
+    // currentLocationId: getCurrentLocationId(state),
+    perspectives: getPerspectives(state),
+    directoryContent: getDirectoryContent(state)
   };
 }
 
@@ -591,9 +628,11 @@ function mapDispatchToProps(dispatch) {
   return bindActionCreators({
     ...LocationActions,
     openLocation: AppActions.openLocation,
+    setCurrentLocationId: AppActions.setCurrentLocationId,
     createDirectoryIndex: AppActions.createDirectoryIndex,
     closeLocation: AppActions.closeLocation,
     loadDirectoryContent: AppActions.loadDirectoryContent,
+    getDirectoriesTree: AppActions.getDirectoriesTree,
     reflectCreateEntry: AppActions.reflectCreateEntry,
     deleteDirectory: AppActions.deleteDirectory,
     openDirectory: AppActions.openDirectory,
