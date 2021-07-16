@@ -1,6 +1,14 @@
 cordova.define('cordova/plugin_list', function(require, exports, module) {
   module.exports = [
     {
+      "id": "com-darryncampbell-cordova-plugin-intent.IntentShim",
+      "file": "plugins/com-darryncampbell-cordova-plugin-intent/www/IntentShim.js",
+      "pluginId": "com-darryncampbell-cordova-plugin-intent",
+      "clobbers": [
+        "intentShim"
+      ]
+    },
+    {
       "id": "com.ourcodeworld.plugins.Filebrowser.Filebrowser",
       "file": "plugins/com.ourcodeworld.plugins.Filebrowser/www/filebrowser.js",
       "pluginId": "com.ourcodeworld.plugins.Filebrowser",
@@ -63,14 +71,6 @@ cordova.define('cordova/plugin_list', function(require, exports, module) {
       "pluginId": "cordova-plugin-camera",
       "clobbers": [
         "CameraPopoverHandle"
-      ]
-    },
-    {
-      "id": "cordova-plugin-chooser.Chooser",
-      "file": "plugins/cordova-plugin-chooser/www/chooser.js",
-      "pluginId": "cordova-plugin-chooser",
-      "clobbers": [
-        "chooser"
       ]
     },
     {
@@ -267,30 +267,20 @@ cordova.define('cordova/plugin_list', function(require, exports, module) {
       "clobbers": [
         "window.plugins.socialsharing"
       ]
-    },
-    {
-      "id": "com-darryncampbell-cordova-plugin-intent.IntentShim",
-      "file": "plugins/com-darryncampbell-cordova-plugin-intent/www/IntentShim.js",
-      "pluginId": "com-darryncampbell-cordova-plugin-intent",
-      "clobbers": [
-        "intentShim"
-      ]
     }
   ];
   module.exports.metadata = {
-    "com.ourcodeworld.plugins.Filebrowser": "1.0.0",
+    "com-darryncampbell-cordova-plugin-intent": "2.0.0",
     "com.whebcraft.cordova.plugin.downloader": "0.1.0",
     "cordova-plugin-add-swift-support": "2.0.2",
     "cordova-plugin-androidx-adapter": "1.1.3",
     "cordova-plugin-device": "2.0.3",
     "cordova-plugin-background-mode": "0.7.3",
-    "cordova-plugin-camera": "4.1.0",
-    "cordova-plugin-chooser": "1.3.1",
+    "cordova-plugin-camera": "5.0.1",
     "cordova-plugin-file": "6.0.2",
-    "cordova-plugin-file-opener2": "3.0.4",
+    "cordova-plugin-file-opener2": "3.0.5",
     "cordova-plugin-whitelist": "1.3.4",
     "es6-promise-plugin": "4.2.2",
-    "cordova-plugin-x-socialsharing": "5.6.8",
-    "com-darryncampbell-cordova-plugin-intent": "2.0.0"
+    "cordova-plugin-x-socialsharing": "6.0.3"
   };
 });

@@ -24,9 +24,11 @@ import MenuItem from '@material-ui/core/MenuItem';
 import Divider from '@material-ui/core/Divider';
 import OpenFile from '@material-ui/icons/SubdirectoryArrowRight';
 import OpenFileNatively from '@material-ui/icons/Launch';
-import OpenContainingFolder from '@material-ui/icons/FolderOpen';
+import OpenParentFolder from '@material-ui/icons/FolderOpen';
+import OpenFolderInternally from '@material-ui/icons/Folder';
 import AddRemoveTags from '@material-ui/icons/Loyalty';
 import MoveCopy from '@material-ui/icons/FileCopy';
+import DuplicateFile from '@material-ui/icons/PostAdd';
 import ImageIcon from '@material-ui/icons/Image';
 import RenameFile from '@material-ui/icons/FormatTextdirectionLToR';
 import DeleteForever from '@material-ui/icons/DeleteForever';
@@ -34,21 +36,33 @@ import i18n from '-/services/i18n';
 import AppConfig from '-/config';
 import PlatformIO from '-/services/platform-io';
 import {
-  FileSystemEntry,
+  generateFileName,
   getAllPropertiesPromise,
   setFolderThumbnailPromise
 } from '-/services/utils-io';
 import { Pro } from '-/pro';
+import {
+  extractContainingDirectoryPath,
+  extractFileName,
+  extractParentDirectoryPath,
+  extractTags
+} from '-/utils/paths';
+import { TS } from '-/tagspaces.namespace';
+import { formatDateTime4Tag } from '-/utils/misc';
+// import AddIcon from '@material-ui/icons/Add';
 
 interface Props {
   anchorEl: Element;
+  mouseX?: number;
+  mouseY?: number;
   open: boolean;
   onClose: () => void;
   openDeleteFileDialog: () => void;
   openRenameFileDialog: () => void;
   openMoveCopyFilesDialog: () => void;
   openAddRemoveTagsDialog: () => void;
-  openFsEntry: (fsEntry: FileSystemEntry) => void;
+  openFsEntry: (fsEntry: TS.FileSystemEntry) => void;
+  loadDirectoryContent: (path: string) => void;
   openFileNatively: (path: string) => void;
   showInFileManager: (path: string) => void;
   showNotification: (
@@ -120,6 +134,42 @@ const FileMenu = (props: Props) => {
     }
   }
 
+  function duplicateFile() {
+    props.onClose();
+    if (props.selectedFilePath) {
+      const dirPath = extractContainingDirectoryPath(
+        props.selectedFilePath,
+        PlatformIO.getDirSeparator()
+      );
+
+      const fileName = extractFileName(
+        props.selectedFilePath,
+        PlatformIO.getDirSeparator()
+      );
+
+      const extractedTags = extractTags(
+        props.selectedFilePath,
+        AppConfig.tagDelimiter,
+        PlatformIO.getDirSeparator()
+      );
+      extractedTags.push('copy');
+      extractedTags.push(formatDateTime4Tag(new Date(), true));
+
+      const newFilePath =
+        (dirPath ? dirPath + PlatformIO.getDirSeparator() : '') +
+        generateFileName(fileName, extractedTags, AppConfig.tagDelimiter);
+
+      PlatformIO.copyFilePromise(props.selectedFilePath, newFilePath)
+        .then(() => {
+          props.loadDirectoryContent(dirPath);
+          return true;
+        })
+        .catch(error => {
+          props.showNotification('Error creating duplicate: ' + error.message);
+        });
+    }
+  }
+
   function openFileNatively() {
     props.onClose();
     if (props.selectedFilePath) {
@@ -127,11 +177,22 @@ const FileMenu = (props: Props) => {
     }
   }
 
+  function openParentFolderInternally() {
+    props.onClose();
+    if (props.selectedFilePath) {
+      const parentFolder = extractParentDirectoryPath(
+        props.selectedFilePath,
+        PlatformIO.getDirSeparator()
+      );
+      props.loadDirectoryContent(parentFolder);
+    }
+  }
+
   function openFile() {
     props.onClose();
     if (props.selectedFilePath) {
       getAllPropertiesPromise(props.selectedFilePath)
-        .then((fsEntry: FileSystemEntry) => {
+        .then((fsEntry: TS.FileSystemEntry) => {
           props.openFsEntry(fsEntry);
           return true;
         })
@@ -145,90 +206,158 @@ const FileMenu = (props: Props) => {
         );
     }
   }
+  const menuItems = [];
+
+  if (props.selectedEntries.length < 2) {
+    menuItems.push(
+      <MenuItem
+        key="fileMenuOpenFile"
+        data-tid="fileMenuOpenFile"
+        onClick={openFile}
+      >
+        <ListItemIcon>
+          <OpenFile />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:openFile')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="fileMenuOpenParentFolderInternally"
+        data-tid="fileMenuOpenParentFolderInternally"
+        onClick={openParentFolderInternally}
+      >
+        <ListItemIcon>
+          <OpenParentFolder />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:openParentFolder')} />
+      </MenuItem>
+    );
+  }
+  if (
+    !(PlatformIO.haveObjectStoreSupport() || AppConfig.isWeb) &&
+    props.selectedEntries.length < 2
+  ) {
+    menuItems.push(
+      <MenuItem
+        key="fileMenuOpenFileNatively"
+        data-tid="fileMenuOpenFileNatively"
+        onClick={openFileNatively}
+      >
+        <ListItemIcon>
+          <OpenFileNatively />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:openFileNatively')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="fileMenuOpenContainingFolder"
+        data-tid="fileMenuOpenContainingFolder"
+        onClick={showInFileManager}
+      >
+        <ListItemIcon>
+          <OpenFolderInternally />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:showInFileManager')} />
+      </MenuItem>
+    );
+    menuItems.push(<Divider key="fmDivider" />);
+  }
+
+  if (!props.isReadOnlyMode) {
+    menuItems.push(
+      <MenuItem
+        key="fileMenuAddRemoveTags"
+        data-tid="fileMenuAddRemoveTags"
+        onClick={showAddRemoveTagsDialog}
+      >
+        <ListItemIcon>
+          <AddRemoveTags />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:addRemoveTags')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="fileMenuRenameFile"
+        data-tid="fileMenuRenameFile"
+        onClick={showRenameFileDialog}
+      >
+        <ListItemIcon>
+          <RenameFile />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:renameFile')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="fileMenuDuplicateFile"
+        data-tid="fileMenuDuplicateFileTID"
+        onClick={duplicateFile}
+      >
+        <ListItemIcon>
+          <DuplicateFile />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:duplicateFile')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="fileMenuMoveCopyFile"
+        data-tid="fileMenuMoveCopyFile"
+        onClick={showMoveCopyFilesDialog}
+      >
+        <ListItemIcon>
+          <MoveCopy />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:moveCopyFile')} />
+      </MenuItem>
+    );
+    if (Pro && props.selectedEntries.length < 2) {
+      menuItems.push(
+        <MenuItem
+          key="setAsThumbTID"
+          data-tid="setAsThumbTID"
+          onClick={setFolderThumbnail}
+        >
+          <ListItemIcon>
+            <ImageIcon />
+          </ListItemIcon>
+          <ListItemText primary={i18n.t('core:setAsThumbnail')} />
+        </MenuItem>
+      );
+    }
+    menuItems.push(
+      <MenuItem
+        key="fileMenuDeleteFile"
+        data-tid="fileMenuDeleteFile"
+        onClick={showDeleteFileDialog}
+      >
+        <ListItemIcon>
+          <DeleteForever />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:deleteEntry')} />
+      </MenuItem>
+    );
+  }
 
   return (
     <div style={{ overflowY: 'hidden' }}>
-      <Menu anchorEl={props.anchorEl} open={props.open} onClose={props.onClose}>
-        {props.selectedEntries.length < 2 && (
-          <MenuItem data-tid="fileMenuOpenFile" onClick={openFile}>
-            <ListItemIcon>
-              <OpenFile />
-            </ListItemIcon>
-            <ListItemText primary={i18n.t('core:openFile')} />
-          </MenuItem>
-        )}
-        {!(PlatformIO.haveObjectStoreSupport() || AppConfig.isWeb) &&
-          props.selectedEntries.length < 2 && (
-            <>
-              <MenuItem
-                data-tid="fileMenuOpenFileNatively"
-                onClick={openFileNatively}
-              >
-                <ListItemIcon>
-                  <OpenFileNatively />
-                </ListItemIcon>
-                <ListItemText primary={i18n.t('core:openFileNatively')} />
-              </MenuItem>
-              <MenuItem
-                data-tid="fileMenuOpenContainingFolder"
-                onClick={showInFileManager}
-              >
-                <ListItemIcon>
-                  <OpenContainingFolder />
-                </ListItemIcon>
-                <ListItemText primary={i18n.t('core:showInFileManager')} />
-              </MenuItem>
-              <Divider />
-            </>
-          )}
-        {!props.isReadOnlyMode && (
-          <>
-            <MenuItem
-              data-tid="fileMenuAddRemoveTags"
-              onClick={showAddRemoveTagsDialog}
-            >
-              <ListItemIcon>
-                <AddRemoveTags />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:addRemoveTags')} />
-            </MenuItem>
-            <MenuItem
-              data-tid="fileMenuRenameFile"
-              onClick={showRenameFileDialog}
-            >
-              <ListItemIcon>
-                <RenameFile />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:renameFile')} />
-            </MenuItem>
-            <MenuItem
-              data-tid="fileMenuMoveCopyFile"
-              onClick={showMoveCopyFilesDialog}
-            >
-              <ListItemIcon>
-                <MoveCopy />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:moveCopyFile')} />
-            </MenuItem>
-            {Pro && props.selectedEntries.length < 2 && (
-              <MenuItem data-tid="setAsThumbTID" onClick={setFolderThumbnail}>
-                <ListItemIcon>
-                  <ImageIcon />
-                </ListItemIcon>
-                <ListItemText primary={i18n.t('core:setAsThumbnail')} />
-              </MenuItem>
-            )}
-            <MenuItem
-              data-tid="fileMenuDeleteFile"
-              onClick={showDeleteFileDialog}
-            >
-              <ListItemIcon>
-                <DeleteForever />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:deleteEntry')} />
-            </MenuItem>
-          </>
-        )}
+      <Menu
+        anchorEl={props.anchorEl}
+        anchorReference={
+          props.mouseY && props.mouseX ? 'anchorPosition' : undefined
+        }
+        anchorPosition={
+          props.mouseY && props.mouseX
+            ? { top: props.mouseY, left: props.mouseX }
+            : undefined
+        }
+        open={props.open}
+        onClose={props.onClose}
+      >
+        {menuItems}
       </Menu>
     </div>
   );

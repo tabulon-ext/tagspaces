@@ -15,34 +15,48 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-
 import OpenLocationCode from 'open-location-code-typescript';
 import i18n from '../services/i18n';
-import { actions as AppActions } from './app';
-import { actions as TagLibraryActions, Tag, TagGroup } from './taglibrary';
+import {
+  actions as AppActions,
+  getLocationPersistTagsInSidecarFile
+} from './app';
+import { actions as TagLibraryActions } from './taglibrary';
 import {
   extractFileExtension,
   extractFileName,
   extractTags,
   extractTitle,
   extractContainingDirectoryPath
-} from '../utils/paths';
+} from '-/utils/paths';
 import {
   loadMetaDataPromise,
   saveMetaDataPromise,
   generateFileName
-} from '../services/utils-io';
-import { formatDateTime4Tag, isPlusCode } from '../utils/misc';
+} from '-/services/utils-io';
+import { formatDateTime4Tag, isPlusCode } from '-/utils/misc';
 import PlatformIO from '../services/platform-io';
 import { Pro } from '../pro';
 import GlobalSearch from '../services/search-index';
+import { getPersistTagsInSidecarFile } from './settings';
+import { TS } from '-/tagspaces.namespace';
 
 export const defaultTagLocation = OpenLocationCode.encode(51.48, 0, undefined); // default tag coordinate Greenwich
+
+const persistTagsInSidecarFile = state => {
+  const locationPersistTagsInSidecarFile = getLocationPersistTagsInSidecarFile(
+    state
+  );
+  if (locationPersistTagsInSidecarFile !== undefined) {
+    return locationPersistTagsInSidecarFile;
+  }
+  return getPersistTagsInSidecarFile(state);
+};
 
 const actions = {
   addTags: (
     paths: Array<string>,
-    tags: Array<Tag>,
+    tags: Array<TS.Tag>,
     updateIndex: boolean = true
   ) => (dispatch: (actions: Object) => void, getState: () => any) => {
     const { settings, taglibrary } = getState();
@@ -67,7 +81,9 @@ const actions = {
             dispatch(AppActions.toggleEditTagDialog(tag));
           } else {
             dispatch(
-              AppActions.showNotification(i18n.t('core:needProVersion'))
+              AppActions.showNotification(
+                i18n.t('core:thisFunctionalityIsAvailableInPro')
+              )
             );
           }
         } else if (tag.functionality === 'dateTagging') {
@@ -78,7 +94,9 @@ const actions = {
             dispatch(AppActions.toggleEditTagDialog(tag));
           } else {
             dispatch(
-              AppActions.showNotification(i18n.t('core:needProVersion'))
+              AppActions.showNotification(
+                i18n.t('core:thisFunctionalityIsAvailableInPro')
+              )
             );
           }
         } else {
@@ -127,8 +145,8 @@ const actions = {
             color: settings.tagBackgroundColor,
             textcolor: settings.tagTextColor,
             children: uniqueTags,
-            created_date: new Date(),
-            modified_date: new Date()
+            created_date: new Date().getTime(),
+            modified_date: new Date().getTime()
           };
           dispatch(TagLibraryActions.mergeTagGroup(tagGroup));
         }
@@ -137,7 +155,7 @@ const actions = {
   },
   addTagsToEntry: (
     path: string,
-    tags: Array<Tag>,
+    tags: Array<TS.Tag>,
     updateIndex: boolean = true
   ) => async (dispatch: (actions: Object) => void, getState: () => any) => {
     const { settings } = getState();
@@ -149,7 +167,7 @@ const actions = {
       console.log('No sidecar found ' + error);
     }
 
-    if (!entryProperties.isFile || settings.persistTagsInSidecarFile) {
+    if (!entryProperties.isFile || persistTagsInSidecarFile(getState())) {
       // Handling adding tags in sidecar
       if (fsEntryMeta) {
         const uniqueTags = getNonExistingTags(
@@ -281,9 +299,9 @@ const actions = {
     }
 
     function getNonExistingTags(
-      newTagsArray: Array<Tag>,
+      newTagsArray: Array<TS.Tag>,
       fileTagsArray: Array<string>,
-      sideCarTagsArray: Array<Tag>
+      sideCarTagsArray: Array<TS.Tag>
     ) {
       const newTags = [];
       for (let i = 0; i < newTagsArray.length; i += 1) {
@@ -309,11 +327,15 @@ const actions = {
    * @param newTagTitle
    * @returns {Function}
    */
-  editTagForEntry: (path: string, tag: Tag, newTagTitle: string) => async (
+  editTagForEntry: (path: string, tag: TS.Tag, newTagTitle?: string) => async (
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
     const { settings, taglibrary } = getState();
+    if (newTagTitle === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      newTagTitle = tag.title;
+    }
     if (
       tag.functionality === 'geoTagging' ||
       tag.functionality === 'dateTagging'
@@ -321,7 +343,7 @@ const actions = {
       // Work around solution
       delete tag.functionality;
       const entryProperties = await PlatformIO.getPropertiesPromise(path);
-      if (entryProperties.isFile && !settings.persistTagsInSidecarFile) {
+      if (entryProperties.isFile && !persistTagsInSidecarFile(getState())) {
         tag.type = 'plain';
       }
     }
@@ -341,17 +363,22 @@ const actions = {
         settings.tagDelimiter,
         PlatformIO.getDirSeparator()
       );
-      let tagFound = false;
+      let tagFoundPosition = -1;
       for (let i = 0; i < extractedTags.length; i += 1) {
         // check if tag is already in the tag array
         if (extractedTags[i] === tag.title) {
           extractedTags[i] = newTagTitle.trim();
-          tagFound = true;
+          tagFoundPosition = i;
         }
       }
-      if (!tagFound) {
+      if (tagFoundPosition === -1) {
         // needed for the current implementation of geo tagging
         extractedTags.push(newTagTitle); // tag.title);
+      } else if (tag.position !== undefined) {
+        // move tag
+        const element = extractedTags[tagFoundPosition];
+        extractedTags.splice(tagFoundPosition, 1);
+        extractedTags.splice(tag.position, 0, element);
       }
       const newFileName = generateFileName(
         fileName,
@@ -370,14 +397,22 @@ const actions = {
       loadMetaDataPromise(path)
         .then(fsEntryMeta => {
           let addMode = true;
-          fsEntryMeta.tags.map(sidecarTag => {
+          let tagFoundPosition = -1;
+          fsEntryMeta.tags.map((sidecarTag, index) => {
             if (sidecarTag.title === tag.title) {
               // eslint-disable-next-line no-param-reassign
               sidecarTag.title = newTagTitle;
               addMode = false;
+              tagFoundPosition = index;
             }
             return true;
           });
+          if (tag.position !== undefined) {
+            // move tag
+            const element = fsEntryMeta.tags[tagFoundPosition];
+            fsEntryMeta.tags.splice(tagFoundPosition, 1);
+            fsEntryMeta.tags.splice(tag.position, 0, element);
+          }
           if (addMode) {
             // eslint-disable-next-line no-param-reassign
             tag.title = newTagTitle;
@@ -475,14 +510,14 @@ const actions = {
           color: settings.tagBackgroundColor,
           textcolor: settings.tagTextColor,
           children: uniqueTags,
-          created_date: new Date(),
-          modified_date: new Date()
+          created_date: new Date().getTime(),
+          modified_date: new Date().getTime()
         };
         dispatch(TagLibraryActions.mergeTagGroup(tagGroup));
       }
     }
   },
-  removeTags: (paths: Array<string>, tags: Array<Tag>) => (
+  removeTags: (paths: Array<string>, tags: Array<TS.Tag>) => (
     dispatch: (actions: Object) => void
   ) => {
     paths.map(path => {
@@ -490,7 +525,7 @@ const actions = {
       return true;
     });
   },
-  removeTagsFromEntry: (path: string, tags: Array<Tag>) => (
+  removeTagsFromEntry: (path: string, tags: Array<TS.Tag>) => (
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
@@ -660,47 +695,6 @@ const actions = {
       }
     }
   },
-  changeTagOrder: (
-    path: string,
-    tag: Tag,
-    direction: 'prev' | 'next' | 'first'
-  ) => () =>
-    // dispatch: (actions: Object) => void
-    {
-      /*
-    console.log('Moves the location of tag in the file name: ' + filePath);
-    var fileName = extractFileName(filePath, PlatformIO.getDirSeparator());
-    var containingDirectoryPath = extractContainingDirectoryPath(filePath, PlatformIO.getDirSeparator());
-    var extractedTags = extractTags(filePath, settings.tagDelimiter, PlatformIO.getDirSeparator());
-    if (extractedTags.indexOf(tagName) < 0) {
-      showAlertDialog("The tag you are trying to move is not part of the file name and that's why it cannot be moved.", $.i18n.t("ns.common:warning"));
-      return;
-    }
-    var tmpTag;
-    for (var i = 0; i < extractedTags.length; i++) {
-      // check if tag is already in the tag array
-      if (extractedTags[i] === tagName) {
-        if (direction === 'prev' && i > 0) {
-          tmpTag = extractedTags[i - 1];
-          extractedTags[i - 1] = extractedTags[i];
-          extractedTags[i] = tmpTag;
-          break;
-        } else if (direction === 'next' && i < extractedTags.length - 1) {
-          tmpTag = extractedTags[i];
-          extractedTags[i] = extractedTags[i + 1];
-          extractedTags[i + 1] = tmpTag;
-          break;
-        } else if (direction === 'first' && i > 0) {
-          tmpTag = extractedTags[i];
-          extractedTags[i] = extractedTags[0];
-          extractedTags[0] = tmpTag;
-          break;
-        }
-      }
-    }
-    var newFileName = generateFileName(fileName, extractedTags);
-    renameFile(filePath, containingDirectoryPath + PlatformIO.getDirSeparator(), + newFileName); */
-    },
   // smart tagging -> PRO
   addDateTag: (paths: Array<string>) => () =>
     // dispatch: (actions: Object) => void
@@ -722,7 +716,7 @@ const actions = {
     {
       // dispatch(actions.createLocation(location));
     },
-  collectTagsFromLocation: (tagGroup: TagGroup) => (
+  collectTagsFromLocation: (tagGroup: TS.TagGroup) => (
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
@@ -731,7 +725,7 @@ const actions = {
     if (!Pro || !Pro.Indexer || !Pro.Indexer.collectTagsFromIndex) {
       dispatch(
         AppActions.showNotification(
-          i18n.t('core:needProVersion'),
+          i18n.t('core:thisFunctionalityIsAvailableInPro'),
           'error',
           true
         )
@@ -759,7 +753,7 @@ const actions = {
       const changedTagGroup = {
         ...tagGroup,
         children: uniqueTags,
-        modified_date: new Date()
+        modified_date: new Date().getTime()
       };
       dispatch(TagLibraryActions.mergeTagGroup(changedTagGroup));
     }

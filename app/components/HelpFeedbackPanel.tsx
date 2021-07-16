@@ -16,13 +16,14 @@
  *
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { withStyles } from '@material-ui/core/styles';
 import classNames from 'classnames';
 import Typography from '@material-ui/core/Typography';
 import CardActions from '@material-ui/core/CardActions';
 import CardContent from '@material-ui/core/CardContent';
 import Button from '@material-ui/core/Button';
+import Tooltip from '@material-ui/core/Tooltip';
 import Avatar from '@material-ui/core/Avatar';
 import Box from '@material-ui/core/Box';
 import List from '@material-ui/core/List';
@@ -34,7 +35,7 @@ import AboutIcon from '@material-ui/icons/BlurOn';
 import ChangeLogIcon from '@material-ui/icons/ImportContacts';
 import OnboardingIcon from '@material-ui/icons/Explore';
 import WebClipperIcon from '@material-ui/icons/Transform';
-import AccountIcon from '@material-ui/icons/AccountCircle';
+// import AccountIcon from '@material-ui/icons/AccountCircle';
 import EmailIcon from '@material-ui/icons/Email';
 import IssueIcon from '@material-ui/icons/BugReport';
 import TranslationIcon from '@material-ui/icons/Translate';
@@ -47,38 +48,50 @@ import ProTeaserIcon from '@material-ui/icons/FlightTakeoff';
 import ExitToAppIcon from '@material-ui/icons/ExitToApp';
 import { connect } from 'react-redux';
 import { CognitoUserInterface } from '@aws-amplify/ui-components';
-import { Auth } from 'aws-amplify';
+import Auth from '@aws-amplify/auth';
+import { bindActionCreators } from 'redux';
 import CustomLogo from './CustomLogo';
 import ProTeaser from '../assets/images/spacerocket_undraw.svg';
 import styles from './SidePanels.css';
-import AppConfig from '../config';
 import i18n from '../services/i18n';
-import { Pro } from '../pro';
+import { clearAllURLParams } from '-/utils/misc';
+import { Pro } from '-/pro';
+import { actions as AppActions } from '-/reducers/app';
+import Links from '-/links';
 
 interface Props {
   classes?: any;
   theme?: any;
   openURLExternally: (url: string, skipConfirmation?: boolean) => void;
-  openFileNatively: (url: string) => void;
   toggleAboutDialog?: () => void;
   toggleKeysDialog: () => void;
   toggleOnboardingDialog: () => void;
   toggleProTeaser: () => void;
   user: CognitoUserInterface;
   style?: any;
+  closeAllVerticalPanels: () => void;
 }
 
 const HelpFeedbackPanel = (props: Props) => {
+  const [isSetupTOTPOpened, setSetupTOTPOpened] = useState<boolean>(false);
+
+  const SetupTOTPDialog = Pro && Pro.UI ? Pro.UI.SetupTOTPDialog : false;
+
   const {
     classes,
     openURLExternally,
-    openFileNatively,
     toggleAboutDialog,
     toggleKeysDialog,
     toggleOnboardingDialog,
     toggleProTeaser,
     theme
   } = props;
+
+  const signOut = () => {
+    Auth.signOut();
+    clearAllURLParams();
+    props.closeAllVerticalPanels();
+  };
 
   let email;
   let initials;
@@ -123,6 +136,70 @@ const HelpFeedbackPanel = (props: Props) => {
                 {email}
               </Typography>
             </ListItem>
+            {SetupTOTPDialog && (
+              <Box
+                style={{
+                  width: '100%',
+                  textAlign: 'center'
+                }}
+              >
+                {isSetupTOTPOpened && (
+                  <SetupTOTPDialog
+                    open={isSetupTOTPOpened}
+                    onClose={() => setSetupTOTPOpened(false)}
+                    user={props.user}
+                    confirmCallback={result => {
+                      if (result) {
+                        window.location.reload(); // TODO SOFTWARE_TOKEN_MFA is not refreshed in signed user without window.reload()
+                      }
+                      console.log('TOTP is:' + result);
+                    }}
+                  />
+                )}
+                {'SOFTWARE_TOKEN_MFA'.indexOf(props.user.preferredMFA) ===
+                -1 ? (
+                  <Tooltip title={i18n.t('core:setupTOTPHelp')}>
+                    <Button
+                      data-tid="setupTOTP"
+                      title={i18n.t('core:setupTOTP')}
+                      className={classes.mainActionButton}
+                      onClick={() => {
+                        setSetupTOTPOpened(true);
+                      }}
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      style={{ width: '95%' }}
+                    >
+                      {i18n.t('core:setupTOTP')}
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <>
+                    <Typography style={{ color: theme.palette.text.primary }}>
+                      {i18n.t('core:TOTPEnabled')}
+                    </Typography>
+                    <Button
+                      className={classes.mainActionButton}
+                      onClick={async () => {
+                        try {
+                          await Auth.setPreferredMFA(props.user, 'NOMFA');
+                          signOut();
+                        } catch (error) {
+                          console.error(error);
+                        }
+                      }}
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      style={{ width: '95%' }}
+                    >
+                      {i18n.t('core:disableTOTP')}
+                    </Button>
+                  </>
+                )}
+              </Box>
+            )}
             <Box
               style={{
                 width: '100%',
@@ -134,7 +211,7 @@ const HelpFeedbackPanel = (props: Props) => {
                 data-tid="signOutTID"
                 title={i18n.t('core:signOut')}
                 className={classes.mainActionButton}
-                onClick={() => Auth.signOut()}
+                onClick={signOut}
                 size="small"
                 variant="outlined"
                 color="primary"
@@ -170,7 +247,7 @@ const HelpFeedbackPanel = (props: Props) => {
           <ListItem
             button
             onClick={() =>
-              openURLExternally(AppConfig.documentationLinks.general, true)
+              openURLExternally(Links.documentationLinks.general, true)
             }
           >
             <ListItemIcon>
@@ -190,9 +267,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() =>
-              openURLExternally(AppConfig.links.changelogURL, true)
-            }
+            onClick={() => openURLExternally(Links.links.changelogURL, true)}
             title="Opens the changelog of the app"
           >
             <ListItemIcon>
@@ -212,7 +287,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.webClipper, true)}
+            onClick={() => openURLExternally(Links.links.webClipper, true)}
           >
             <ListItemIcon>
               <WebClipperIcon />
@@ -224,7 +299,7 @@ const HelpFeedbackPanel = (props: Props) => {
           <Divider />
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.suggestFeature)}
+            onClick={() => openURLExternally(Links.links.suggestFeature, true)}
           >
             <ListItemIcon>
               <NewFeatureIcon />
@@ -235,7 +310,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.reportIssue)}
+            onClick={() => openURLExternally(Links.links.reportIssue, true)}
           >
             <ListItemIcon>
               <IssueIcon />
@@ -246,7 +321,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.helpTranslating)}
+            onClick={() => openURLExternally(Links.links.helpTranslating, true)}
           >
             <ListItemIcon>
               <TranslationIcon />
@@ -258,7 +333,7 @@ const HelpFeedbackPanel = (props: Props) => {
           <Divider />
           <ListItem
             button
-            onClick={() => openFileNatively(AppConfig.links.emailContact)}
+            onClick={() => openURLExternally(Links.links.emailContact, true)}
           >
             <ListItemIcon>
               <EmailIcon />
@@ -269,7 +344,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.twitter)}
+            onClick={() => openURLExternally(Links.links.twitter)}
           >
             <ListItemIcon>
               <Social2Icon />
@@ -280,7 +355,7 @@ const HelpFeedbackPanel = (props: Props) => {
           </ListItem>
           <ListItem
             button
-            onClick={() => openURLExternally(AppConfig.links.facebook)}
+            onClick={() => openURLExternally(Links.links.facebook)}
           >
             <ListItemIcon>
               <SocialIcon />
@@ -350,7 +425,7 @@ const HelpFeedbackPanel = (props: Props) => {
                   onClick={(event: any) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    openURLExternally(AppConfig.links.productsOverview, true);
+                    openURLExternally(Links.links.productsOverview, true);
                   }}
                 >
                   Get It
@@ -371,6 +446,16 @@ function mapStateToProps(state) {
   };
 }
 
-export default connect(mapStateToProps)(
-  withStyles(styles, { withTheme: true })(HelpFeedbackPanel)
-);
+function mapDispatchToProps(dispatch) {
+  return bindActionCreators(
+    {
+      closeAllVerticalPanels: AppActions.closeAllVerticalPanels
+    },
+    dispatch
+  );
+}
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(withStyles(styles, { withTheme: true })(HelpFeedbackPanel));

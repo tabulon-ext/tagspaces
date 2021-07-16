@@ -16,21 +16,15 @@
  *
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import classNames from 'classnames';
 import { withStyles } from '@material-ui/core/styles';
 import Typography from '@material-ui/core/Typography';
-import List from '@material-ui/core/List';
-import ListItem from '@material-ui/core/ListItem';
-import ListItemIcon from '@material-ui/core/ListItemIcon';
-import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import IconButton from '@material-ui/core/IconButton';
 import Collapse from '@material-ui/core/Collapse';
 import MoreVertIcon from '@material-ui/icons/MoreVert';
-import ArrowDownIcon from '@material-ui/icons/KeyboardArrowDown';
-import ArrowRightIcon from '@material-ui/icons/KeyboardArrowRight';
 import TagContainerDnd from './TagContainerDnd';
 import TagContainer from './TagContainer';
 import ConfirmDialog from './dialogs/ConfirmDialog';
@@ -44,12 +38,9 @@ import CustomLogo from './CustomLogo';
 import TagLibraryMenu from './menus/TagLibraryMenu';
 import TagGroupMenu from './menus/TagGroupMenu';
 import {
-  TagGroup,
-  Tag,
   actions as TagLibraryActions,
   getAllTags,
-  getTagGroups,
-  Uuid
+  getTagGroups
 } from '../reducers/taglibrary';
 import TaggingActions from '../reducers/tagging-actions';
 import i18n from '../services/i18n';
@@ -64,44 +55,56 @@ import {
   isReadOnlyMode
 } from '../reducers/app';
 import SmartTags from '../reducers/smart-tags';
-import { FileSystemEntry } from '-/services/utils-io';
 import { AppConfig } from '-/config';
 import EditTagDialog from '-/components/dialogs/EditTagDialog';
+import { TS } from '-/tagspaces.namespace';
+import { getLocations } from '-/reducers/locations';
+import { Pro } from '-/pro';
+import TagGroupTitleDnD from '-/components/TagGroupTitleDnD';
 
 interface Props {
-  classes: any;
-  style: any;
+  classes?: any;
+  style?: any;
   isReadOnlyMode: boolean;
   tagTextColor: string;
   tagBackgroundColor: string;
-  tagGroups: Array<TagGroup>;
-  allTags: Array<Tag>;
+  tagGroups: Array<TS.TagGroup>;
+  allTags: Array<TS.Tag>;
   openURLExternally: (path: string) => void;
   toggleTagGroup: (uuid: string) => void;
   removeTagGroup: (uuid: string) => void;
   moveTagGroupUp: (uuid: string) => void;
   moveTagGroupDown: (uuid: string) => void;
   sortTagGroup: (uuid: string) => void;
-  collectTagsFromLocation: (tagGroup: TagGroup) => void;
+  collectTagsFromLocation: (tagGroup: TS.TagGroup) => void;
   addTags: () => void;
-  importTagGroups: () => void;
+  importTagGroups: (entries: Array<TS.TagGroup>, replace?: boolean) => void;
   exportTagGroups: () => void;
   createTagGroup: () => void;
   addTag: () => void;
   moveTag: () => void;
+  changeTagOrder: (
+    tagGroupUuid: TS.Uuid,
+    fromIndex: number,
+    toIndex: number
+  ) => void;
   editTagGroup: () => void;
   editTag: () => void;
-  deleteTag: (tagTitle: string, parentTagGroupUuid: Uuid) => void;
+  deleteTag: (tagTitle: string, parentTagGroupUuid: TS.Uuid) => void;
   showNotification: (
     text: string,
     notificationType?: string, // NotificationTypes
     autohide?: boolean
   ) => void;
-  selectedEntries: Array<FileSystemEntry>;
+  selectedEntries: Array<TS.FileSystemEntry>;
   tagGroupCollapsed: Array<string>;
+  locations: Array<TS.Location>;
+  saveTagInLocation: boolean;
+  moveTagGroup: (tagGroupUuid: TS.Uuid, position: number) => void;
 }
 
 const TagLibrary = (props: Props) => {
+  const tagContainerRef = useRef<HTMLSpanElement>(null);
   const [
     tagGroupMenuAnchorEl,
     setTagGroupMenuAnchorEl
@@ -113,11 +116,11 @@ const TagLibrary = (props: Props) => {
     tagLibraryMenuAnchorEl,
     setTagLibraryMenuAnchorEl
   ] = useState<null | HTMLElement>(null);
-  const [selectedTagGroupEntry, setSelectedTagGroupEntry] = useState<TagGroup>(
-    null
-  );
+  const [selectedTagGroupEntry, setSelectedTagGroupEntry] = useState<
+    TS.TagGroup
+  >(null);
   // const [selectedTagEntry, setSelectedTagEntry] = useState<TagGroup>(null);
-  const [selectedTag, setSelectedTag] = useState<Tag>(null);
+  const [selectedTag, setSelectedTag] = useState<TS.Tag>(null);
   const [
     isCreateTagGroupDialogOpened,
     setIsCreateTagGroupDialogOpened
@@ -139,12 +142,33 @@ const TagLibrary = (props: Props) => {
     boolean
   >(false);
 
+  useEffect(() => {
+    if (Pro && props.saveTagInLocation) {
+      refreshTagsFromLocation();
+    }
+  }, []);
+
+  const refreshTagsFromLocation = () => {
+    props.locations.map(location =>
+      Pro.MetaOperations.getTagGroups(location.path)
+        .then((tagGroups: Array<TS.TagGroup>) => {
+          if (tagGroups && tagGroups.length > 0) {
+            const newGroups = tagGroups.map(group => ({
+              ...group,
+              locationId: location.uuid
+            }));
+            props.importTagGroups(newGroups, false);
+          }
+          return true;
+        })
+        .catch(err => {
+          console.error(err);
+        })
+    );
+  };
+
   const isTagLibraryReadOnly =
     window.ExtTagLibrary && window.ExtTagLibrary.length > 0;
-
-  const handleTagGroupTitleClick = (event: Object, tagGroup) => {
-    props.toggleTagGroup(tagGroup.uuid);
-  };
 
   const handleTagGroupMenu = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -160,7 +184,11 @@ const TagLibrary = (props: Props) => {
   };
 
   const handleTagMenuCallback = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>, tag, tagGroup: TagGroup) => {
+    (
+      event: React.ChangeEvent<HTMLInputElement>,
+      tag,
+      tagGroup: TS.TagGroup
+    ) => {
       handleTagMenu(event, tag, tagGroup);
     },
     []
@@ -169,7 +197,7 @@ const TagLibrary = (props: Props) => {
   const handleTagMenu = (
     event: React.ChangeEvent<HTMLInputElement>,
     tag,
-    tagGroup: TagGroup
+    tagGroup: TS.TagGroup
   ) => {
     if (!tagGroup.readOnly) {
       setTagMenuAnchorEl(event.currentTarget);
@@ -206,7 +234,7 @@ const TagLibrary = (props: Props) => {
     setTagGroupMenuAnchorEl(null);
   };
 
-  const renderTagGroup = tagGroup => {
+  const renderTagGroup = (tagGroup, index) => {
     // eslint-disable-next-line no-param-reassign
     tagGroup.expanded = !(
       props.tagGroupCollapsed && props.tagGroupCollapsed.includes(tagGroup.uuid)
@@ -214,60 +242,24 @@ const TagLibrary = (props: Props) => {
     const isReadOnly = tagGroup.readOnly || isTagLibraryReadOnly;
     return (
       <div key={tagGroup.uuid}>
-        <ListItem
-          data-tid={'tagLibraryTagGroupTitle_' + tagGroup.title}
-          button
-          style={{ maxWidth: 250 }}
-          className={props.classes.listItem}
-          onClick={(event: any) => handleTagGroupTitleClick(event, tagGroup)}
-          onContextMenu={(event: any) => handleTagGroupMenu(event, tagGroup)}
-          title={
-            'Number of tags in this tag group: ' + tagGroup.children.length
-          }
-        >
-          <ListItemIcon style={{ minWidth: 'auto' }}>
-            {tagGroup.expanded ? <ArrowDownIcon /> : <ArrowRightIcon />}
-          </ListItemIcon>
-          <Typography
-            variant="inherit"
-            className={props.classes.header}
-            style={{ paddingLeft: 0 }}
-            data-tid="locationTitleElement"
-            noWrap
-          >
-            {tagGroup.title + ' '}
-            {!tagGroup.expanded && (
-              <span className={props.classes.badge}>
-                {tagGroup.children.length}
-              </span>
-            )}
-          </Typography>
-          {!isReadOnly && (
-            <ListItemSecondaryAction>
-              <IconButton
-                aria-label={i18n.t('core:options')}
-                aria-haspopup="true"
-                edge="end"
-                data-tid={
-                  'tagLibraryMoreButton_' + tagGroup.title.replace(/ /g, '_')
-                }
-                onClick={(event: any) => handleTagGroupMenu(event, tagGroup)}
-                onContextMenu={(event: any) =>
-                  handleTagGroupMenu(event, tagGroup)
-                }
-              >
-                <MoreVertIcon />
-              </IconButton>
-            </ListItemSecondaryAction>
-          )}
-        </ListItem>
+        <TagGroupTitleDnD
+          index={index}
+          classes={classes}
+          tagGroup={tagGroup}
+          moveTagGroup={props.moveTagGroup}
+          handleTagGroupMenu={handleTagGroupMenu}
+          toggleTagGroup={props.toggleTagGroup}
+          locations={props.locations}
+          tagGroupCollapsed={props.tagGroupCollapsed}
+          isReadOnly={isReadOnly}
+        />
         <Collapse in={tagGroup.expanded} unmountOnExit>
           <TagGroupContainer
             taggroup={tagGroup}
             data-tid={'tagGroupContainer_' + tagGroup.title}
           >
             {tagGroup.children &&
-              tagGroup.children.map((tag: Tag) => {
+              tagGroup.children.map((tag: TS.Tag, idx) => {
                 if (props.isReadOnlyMode) {
                   return (
                     <TagContainer
@@ -284,11 +276,14 @@ const TagLibrary = (props: Props) => {
                 return (
                   <TagContainerDnd
                     key={tagGroup.uuid + tag.title}
+                    tagContainerRef={tagContainerRef}
+                    index={idx}
                     tag={tag}
                     tagGroup={tagGroup}
                     handleTagMenu={handleTagMenuCallback}
                     addTags={props.addTags}
                     moveTag={props.moveTag}
+                    changeTagOrder={props.changeTagOrder}
                     selectedEntries={props.selectedEntries}
                   />
                 );
@@ -400,6 +395,8 @@ const TagLibrary = (props: Props) => {
         showCreateTagGroupDialog={showCreateTagGroupDialog}
         showNotification={showNotification}
         openURLExternally={props.openURLExternally}
+        saveTagInLocation={props.saveTagInLocation}
+        refreshTagsFromLocation={refreshTagsFromLocation}
       />
       {Boolean(tagMenuAnchorEl) && (
         <TagMenu
@@ -440,11 +437,11 @@ const TagLibrary = (props: Props) => {
       )}
       <div className={classes.taggroupsArea} data-tid="tagLibraryTagGroupList">
         {AppConfig.showSmartTags && (
-          <List style={{ paddingTop: 0, paddingBottom: 0 }}>
+          <div style={{ paddingTop: 0, paddingBottom: 0 }}>
             {SmartTags(i18n).map(renderTagGroup)}
-          </List>
+          </div>
         )}
-        <List style={{ paddingTop: 0 }}>{tagGroups.map(renderTagGroup)}</List>
+        <div style={{ paddingTop: 0 }}>{tagGroups.map(renderTagGroup)}</div>
       </div>
     </div>
   );
@@ -458,7 +455,9 @@ function mapStateToProps(state) {
     selectedEntries: getSelectedEntries(state),
     allTags: getAllTags(state),
     isReadOnlyMode: isReadOnlyMode(state),
-    tagGroupCollapsed: state.settings.tagGroupCollapsed
+    tagGroupCollapsed: state.settings.tagGroupCollapsed,
+    locations: getLocations(state),
+    saveTagInLocation: state.settings.saveTagInLocation
   };
 }
 
@@ -468,6 +467,7 @@ function mapDispatchToProps(dispatch) {
       toggleTagGroup: SettingsActions.toggleTagGroup,
       removeTagGroup: TagLibraryActions.removeTagGroup,
       moveTagGroupUp: TagLibraryActions.moveTagGroupUp,
+      moveTagGroup: TagLibraryActions.moveTagGroup,
       moveTagGroupDown: TagLibraryActions.moveTagGroupDown,
       sortTagGroup: TagLibraryActions.sortTagGroup,
       importTagGroups: TagLibraryActions.importTagGroups,
@@ -475,6 +475,7 @@ function mapDispatchToProps(dispatch) {
       createTagGroup: TagLibraryActions.createTagGroup,
       editTag: TagLibraryActions.editTag,
       moveTag: TagLibraryActions.moveTag,
+      changeTagOrder: TagLibraryActions.changeTagOrder,
       editTagGroup: TagLibraryActions.editTagGroup,
       deleteTag: TagLibraryActions.deleteTag,
       addTag: TagLibraryActions.addTag,

@@ -1,5 +1,4 @@
 /* Copyright (c) 2016-present - TagSpaces UG (Haftungsbeschraenkt). All rights reserved. */
-import { Application } from 'spectron';
 import electronPath from 'electron';
 import pathLib from 'path';
 
@@ -28,15 +27,21 @@ export async function clearLocalStorage() {
     global.app.webContents.reload();
   }*/
   if (global.isWeb) {
-    //clearAllURLParams && clears everything in localStorage
-    await global.client.execute(
-      "window.history.pushState('', document.title, window.location.pathname);localStorage.clear();"
-    );
-    // global.client.executeScript('window.localStorage.clear()');
-    // global.client.clearLocalStorage();
-    // window.localStorage.clear();
-    //await global.client.reloadSession();
-    await global.client.refresh();
+    if (isPlaywright) {
+      const windowHandle = await global.client.evaluateHandle(() => window);
+      const title = await global.client.evaluateHandle(() => document.title);
+      windowHandle.history.pushState('', title, windowHandle.location.pathname);
+    } else {
+      //clearAllURLParams && clears everything in localStorage
+      await global.client.execute(
+        "window.history.pushState('', document.title, window.location.pathname);localStorage.clear();"
+      );
+      // global.client.executeScript('window.localStorage.clear()');
+      // global.client.clearLocalStorage();
+      // window.localStorage.clear();
+      //await global.client.reloadSession();
+      await global.client.refresh();
+    }
   } else {
     await global.app.webContents.executeJavaScript(
       "window.history.pushState('', document.title, window.location.pathname);localStorage.clear()"
@@ -62,64 +67,115 @@ export async function startSpectronApp() {
   }
 
   if (global.isWeb) {
-    //require('scripts/wdio.conf');
-    const webdriverio = require('webdriverio');
-    // https://webdriver.io/docs/configurationfile.html
+    if (global.isPlaywright) {
+      const { webkit, chromium } = require('playwright');
+      global.app = await chromium.launch({
+        headless: global.isHeadlessMode,
+        slowMo: 50
+      }); //browser
 
-    const options = {
-      host: 'localhost', // Use localhost as chrome driver server
-      port: 9515, // "9515" is the port opened by chrome driver.
-      capabilities: {
-        browserName: 'chrome',
-        'goog:chromeOptions': {
-          w3c: true,
-          args: chromeDriverArgs
-        }
-        // pageLoadStrategy: 'normal'
-      },
-      // Warns when a deprecated command is used
-      deprecationWarnings: true,
-      // If you only want to run your tests until a specific amount of tests have failed use
-      // bail (default is 0 - don't bail, run all tests).
-      bail: 0,
-      reporters: ['spec'],
-      /* afterTest: [async function(
-        test,
-        context,
-        { error, result, duration, passed, retries }
-      ) => {
-        await takeScreenshot();
-        await clearLocalStorage();
-      }], */
-      waitforTimeout: 5000,
-      maxInstances: 1,
-      // logLevel: 'debug'
-      logLevel: 'silent',
-      coloredLogs: true
-    };
-    // global.client = browser
-    global.client = await webdriverio.remote(options);
-    // global.client.setTimeout({ 'script': 60000 });
-    /*client = await client
-      .init()
-      .setViewportSize({ width: 1024, height: 768 }, false)
-      .timeouts('script', 6000)
-      /!*
-                 Cannot set 'implicit' timeout because of a bug in webdriverio [1].
-                 [1] https://github.com/webdriverio/webdriverio/issues/974
-                 *!/
-      // .timeouts('implicit', 5000)
-      .timeouts('pageLoad', 30000);*/
-    setWdioImageComparisonService(global.client);
+      global.context = await global.app.newContext({
+        viewport: { width: 1920, height: 1080 }
+      });
 
-    await global.client.url('http://localhost:8000');
+      global.client = await global.context.newPage(); //page
+      await global.client.goto('http://localhost:8000');
+      // await global.client.screenshot({ path: `example.png` });
+      // await global.client.close();
+    } else {
+      //require('scripts/wdio.conf');
+      const webdriverio = require('webdriverio');
+      // https://webdriver.io/docs/configurationfile.html
+
+      const options = {
+        host: 'localhost', // Use localhost as chrome driver server
+        port: 9515, // "9515" is the port opened by chrome driver.
+        capabilities: {
+          browserName: 'chrome',
+          'goog:chromeOptions': {
+            w3c: true,
+            args: chromeDriverArgs
+          }
+          // pageLoadStrategy: 'normal'
+        },
+        // Warns when a deprecated command is used
+        deprecationWarnings: true,
+        // If you only want to run your tests until a specific amount of tests have failed use
+        // bail (default is 0 - don't bail, run all tests).
+        bail: 0,
+        reporters: ['spec'],
+        /* afterTest: [async function(
+          test,
+          context,
+          { error, result, duration, passed, retries }
+        ) => {
+          await takeScreenshot();
+          await clearLocalStorage();
+        }], */
+        waitforTimeout: 5000,
+        maxInstances: 1,
+        // logLevel: 'debug'
+        logLevel: 'silent',
+        coloredLogs: true
+      };
+      // global.client = browser
+      global.client = await webdriverio.remote(options);
+      // global.client.setTimeout({ 'script': 60000 });
+      /*client = await client
+        .init()
+        .setViewportSize({ width: 1024, height: 768 }, false)
+        .timeouts('script', 6000)
+        /!*
+                   Cannot set 'implicit' timeout because of a bug in webdriverio [1].
+                   [1] https://github.com/webdriverio/webdriverio/issues/974
+                   *!/
+        // .timeouts('implicit', 5000)
+        .timeouts('pageLoad', 30000);*/
+      setWdioImageComparisonService(global.client);
+
+      await global.client.url('http://localhost:8000');
+    }
+  } else if (global.isPlaywright) {
+    const { _electron: electron } = require('playwright');
+    // Launch Electron app.
+    global.app = await electron.launch({
+      args: [pathLib.join(__dirname, '..', '..', 'app', 'main.prod.js')]
+    });
+
+    // Get the first window that the app opens, wait if necessary.
+    global.client = await global.app.firstWindow();
+    await global.client.waitForLoadState('load'); //'domcontentloaded'); //'networkidle');
+    // await global.client.bringToFront();
+    // Evaluation expression in the Electron context.
+    /*const appPath = await global.app.evaluate(async ({ app }) => {
+      // This runs in the main Electron process, parameter here is always
+      // the result of the require('electron') in the main app script.
+      return app.getAppPath();
+    });
+    console.log(appPath);*/
+
+    // Print the title.
+    // console.log(await global.client.title());
+
+    // Direct Electron console to Node terminal.
+    global.client.on('console', console.log);
+    // Click button.
+    /*await global.client.click('[data-tid=location_supported-filestypes]');
+    // Capture a screenshot.
+    await global.client.screenshot({
+      path: pathLib.join(__dirname, 'intro.png')
+    });*/
+    // Exit app.
+    // await global.app.close();
   } else {
+    const { Application } = require('spectron');
     global.app = new Application({
       path: electronPath,
       args: [pathLib.join(__dirname, '..', '..', 'app')],
       // startTimeout: 500,
       waitTimeout: 1000,
       waitforInterval: 50,
+      maxInstances: 1,
       chromeDriverArgs: chromeDriverArgs
     });
     await global.app.start();
@@ -149,17 +205,18 @@ function setWdioImageComparisonService(browser) {
 }
 
 export async function stopSpectronApp() {
-  if (global.app && global.app.isRunning()) {
+  if (global.isPlaywright && global.app) {
+    await global.app.close();
+  } else if (global.isWeb) {
+    await global.client.closeWindow();
+    // await global.client.end();
+  } else if (global.app && global.app.isRunning()) {
     // await clearLocalStorage();
     return global.app.stop();
   }
-  if (global.isWeb) {
-    await global.client.closeWindow();
-    // await global.client.end();
-  }
 }
 
-export function testDataRefresh() {
+export async function testDataRefresh() {
   const fse = require('fs-extra');
   const src = pathLib.join(
     __dirname,
@@ -173,6 +230,9 @@ export function testDataRefresh() {
   let newPath = pathLib.join(dst, pathLib.basename(src));
   fse.emptyDirSync(newPath);
   fse.copySync(src, newPath, { overwrite: true });
+  if (global.isElectron && global.client) {
+    await global.client.waitForTimeout(1000);
+  }
 }
 
 export async function takeScreenshot(name = expect.getState().currentTestName) {

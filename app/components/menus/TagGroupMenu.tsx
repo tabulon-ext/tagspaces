@@ -24,31 +24,42 @@ import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemText from '@material-ui/core/ListItemText';
 import DeleteTagGroupIcon from '@material-ui/icons/DeleteForever';
 import SortTagGroupIcon from '@material-ui/icons/SortByAlpha';
+import ShowEntriesWithTagIcon from '@material-ui/icons/SearchOutlined';
 import TagIcon from '@material-ui/icons/LocalOffer';
+import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import CollectTagsIcon from '@material-ui/icons/Voicemail';
 import Menu from '@material-ui/core/Menu';
 import MenuItem from '@material-ui/core/MenuItem';
-import { TagGroup } from '-/reducers/taglibrary';
+import { bindActionCreators } from 'redux';
+import { connect } from 'react-redux';
 import i18n from '-/services/i18n';
 import { Pro } from '-/pro';
-
+import { getMaxSearchResults } from '-/reducers/settings';
+import { actions as AppActions } from '-/reducers/app';
+import { actions as LocationIndexActions } from '-/reducers/location-index';
+import { TS } from '-/tagspaces.namespace';
+import InfoIcon from '-/components/InfoIcon';
+import { ProLabel } from '-/components/HelperComponents';
 interface Props {
   classes?: any;
   anchorEl: Element;
   open: boolean;
   onClose: () => void;
-  selectedTagGroupEntry: TagGroup;
+  selectedTagGroupEntry: TS.TagGroup;
   showCreateTagsDialog: () => void;
   showDeleteTagGroupDialog: () => void;
   showEditTagGroupDialog: () => void;
   moveTagGroupUp: (tagGroupId: string) => void;
   moveTagGroupDown: (tagGroupId: string) => void;
   sortTagGroup: (tagGroupId: string) => void;
-  collectTagsFromLocation: (tagGroup: TagGroup) => void;
+  collectTagsFromLocation: (tagGroup: TS.TagGroup) => void;
   handleCloseTagGroupMenu: () => void;
+  searchLocationIndex: (searchQuery: TS.SearchQuery) => void;
+  openSearchPanel: () => void;
+  maxSearchResults: number;
 }
 
-const TagLibraryMenu = (props: Props) => {
+const TagGroupMenu = (props: Props) => {
   function handleCollectTags() {
     props.onClose();
 
@@ -75,6 +86,17 @@ const TagLibraryMenu = (props: Props) => {
   function sortTagGroup() {
     if (props.selectedTagGroupEntry) {
       props.sortTagGroup(props.selectedTagGroupEntry.uuid);
+    }
+    props.handleCloseTagGroupMenu();
+  }
+
+  function showFilesWithTags() {
+    if (props.selectedTagGroupEntry) {
+      props.openSearchPanel();
+      props.searchLocationIndex({
+        tagsOR: props.selectedTagGroupEntry.children,
+        maxSearchResults: props.maxSearchResults
+      });
     }
     props.handleCloseTagGroupMenu();
   }
@@ -119,6 +141,15 @@ const TagLibraryMenu = (props: Props) => {
           </ListItemIcon>
           <ListItemText primary={i18n.t('core:sortTagGroup')} />
         </MenuItem>
+        <MenuItem data-tid="showFilesWithTagsTID" onClick={showFilesWithTags}>
+          <ListItemIcon>
+            <ShowEntriesWithTagIcon />
+          </ListItemIcon>
+          <ListItemText primary={i18n.t('core:showFilesWithTags')} />
+          <ListItemSecondaryAction>
+            <InfoIcon tooltip={i18n.t('core:showFilesWithTagsTooltip')} />
+          </ListItemSecondaryAction>
+        </MenuItem>
         <MenuItem
           data-tid="deleteTagGroup"
           onClick={props.showDeleteTagGroupDialog}
@@ -131,14 +162,17 @@ const TagLibraryMenu = (props: Props) => {
         <MenuItem
           data-tid="collectTags"
           onClick={handleCollectTags}
-          title={Pro ? '' : i18n.t('core:needProVersion')}
+          title={i18n.t('collectTagsFromLocationTitle')}
         >
           <ListItemIcon>
             <CollectTagsIcon />
           </ListItemIcon>
           <ListItemText
             primary={
-              i18n.t('core:collectTagsFromLocation') + (Pro ? '' : ' PRO')
+              <>
+                {i18n.t('core:collectTagsFromLocation')}
+                <ProLabel />
+              </>
             }
           />
         </MenuItem>
@@ -147,4 +181,20 @@ const TagLibraryMenu = (props: Props) => {
   );
 };
 
-export default TagLibraryMenu;
+function mapStateToProps(state) {
+  return {
+    maxSearchResults: getMaxSearchResults(state)
+  };
+}
+
+function mapDispatchToProps(dispatch) {
+  return bindActionCreators(
+    {
+      openSearchPanel: AppActions.openSearchPanel,
+      searchLocationIndex: LocationIndexActions.searchLocationIndex
+    },
+    dispatch
+  );
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(TagGroupMenu);

@@ -45,7 +45,6 @@ import ConfirmDialog from '-/components/dialogs/ConfirmDialog';
 import AppConfig from '-/config';
 import PlatformIO from '-/services/platform-io';
 import AddRemoveTagsDialog from '-/components/dialogs/AddRemoveTagsDialog';
-import { FileSystemEntry } from '-/services/utils-io';
 import i18n from '-/services/i18n';
 import {
   extractContainingDirectoryPath,
@@ -59,7 +58,8 @@ import { buffer } from '-/utils/misc';
 import {
   actions as SettingsActions,
   isDesktopMode,
-  getKeyBindingObject
+  getKeyBindingObject,
+  getMapTileServer
 } from '-/reducers/settings';
 import TaggingActions from '-/reducers/tagging-actions';
 import {
@@ -69,6 +69,7 @@ import {
   actions as AppActions
 } from '-/reducers/app';
 import useEventListener from '-/utils/useEventListener';
+import { TS } from '-/tagspaces.namespace';
 
 const defaultSplitSize = 103;
 const openedSplitSize = AppConfig.isElectron ? 560 : 360;
@@ -183,11 +184,12 @@ interface Props {
   addTags: () => void;
   removeTags: () => void;
   // editTagForEntry: () => void;
-  openFsEntry: (fsEntry: FileSystemEntry) => void;
+  openFsEntry: (fsEntry: TS.FileSystemEntry) => void;
   openPrevFile: (path: string) => void;
   openNextFile: (path: string) => void;
   openFileNatively: (path: string) => void;
   openLink: (url: string) => void;
+  openDirectory: (path: string) => void;
   showNotification: (
     text: string,
     notificationType?: string, // NotificationTypes
@@ -205,10 +207,11 @@ interface Props {
   ) => void;
   // reflectUpdateSidecarMeta: (path: string, entryMeta: Object) => void;
   updateThumbnailUrl: (path: string, thumbUrl: string) => void;
-  setLastSelectedEntry: (path: string) => void;
+  // setLastSelectedEntry: (path: string) => void;
   setSelectedEntries: (selectedEntries: Array<Object>) => void;
   currentDirectoryPath: string | null;
   isDesktopMode: boolean;
+  tileServer: TS.MapTileServer;
 }
 
 const EntryContainer = (props: Props) => {
@@ -333,10 +336,6 @@ const EntryContainer = (props: Props) => {
       case 'openLinkExternally':
         // console.log('Open link externally: ' + data.link);
         props.openLink(data.link);
-        break;
-      case 'openFileNatively':
-        console.log('Open file natively: ' + data.link);
-        props.openFileNatively(data.link);
         break;
       case 'loadDefaultTextContent':
         if (!openedFile || !openedFile.path) {
@@ -616,7 +615,11 @@ const EntryContainer = (props: Props) => {
 
   const openNatively = () => {
     if (openedFile.path) {
-      props.openFileNatively(openedFile.path);
+      if (openedFile.isFile) {
+        props.openFileNatively(openedFile.path);
+      } else {
+        props.openDirectory(openedFile.path);
+      }
     }
   };
 
@@ -658,7 +661,6 @@ const EntryContainer = (props: Props) => {
       <div className={classes.flexLeft}>
         <Tooltip title={i18n.t('core:toggleProperties')}>
           <IconButton
-            // title={i18n.t('core:toggleProperties')}
             aria-label={i18n.t('core:toggleProperties')}
             onClick={togglePanel}
             data-tid="fileContainerToggleProperties"
@@ -668,7 +670,6 @@ const EntryContainer = (props: Props) => {
         </Tooltip>
         <Tooltip title={i18n.t('core:switchToFullscreen')}>
           <IconButton
-            // title={i18n.t('core:switchToFullscreen')}
             aria-label={i18n.t('core:switchToFullscreen')}
             data-tid="fileContainerSwitchToFullScreen"
             onClick={toggleFullScreen}
@@ -679,7 +680,6 @@ const EntryContainer = (props: Props) => {
         {AppConfig.isCordova && (
           <Tooltip title={i18n.t('core:shareFile')}>
             <IconButton
-              // title={i18n.t('core:shareFile')}
               aria-label={i18n.t('core:shareFile')}
               data-tid="shareFile"
               onClick={() => shareFile(`file:///${openedFile.path}`)}
@@ -691,7 +691,6 @@ const EntryContainer = (props: Props) => {
         {!(PlatformIO.haveObjectStoreSupport() || AppConfig.isWeb) && (
           <Tooltip title={i18n.t('core:openFileExternally')}>
             <IconButton
-              // title={i18n.t('core:openFileExternally')}
               aria-label={i18n.t('core:openFileExternally')}
               onClick={openNatively}
             >
@@ -701,7 +700,6 @@ const EntryContainer = (props: Props) => {
         )}
         <Tooltip title={i18n.t('core:downloadFile')}>
           <IconButton
-            // title={i18n.t('core:downloadFile')}
             aria-label={i18n.t('core:downloadFile')}
             onClick={() => {
               const entryName = `${baseName(
@@ -763,7 +761,6 @@ const EntryContainer = (props: Props) => {
           <Tooltip title={i18n.t('core:deleteEntry')}>
             <IconButton
               data-tid="deleteEntryTID"
-              // title={i18n.t('core:deleteEntry')}
               aria-label={i18n.t('core:deleteEntry')}
               onClick={() => setDeleteEntryModalOpened(true)}
             >
@@ -774,7 +771,6 @@ const EntryContainer = (props: Props) => {
         <Tooltip title={i18n.t('core:reloadFile')}>
           <IconButton
             data-tid="reloadFileTID"
-            // title={i18n.t('core:reloadFile')}
             aria-label={i18n.t('core:reloadFile')}
             onClick={reloadDocument}
           >
@@ -785,7 +781,6 @@ const EntryContainer = (props: Props) => {
           <Tooltip title={i18n.t('core:openInFullWidth')}>
             <IconButton
               data-tid="openInFullWidthTID"
-              // title={i18n.t('core:openInFullWidth')}
               aria-label={i18n.t('core:openInFullWidth')}
               onClick={props.toggleEntryFullWidth}
             >
@@ -797,7 +792,6 @@ const EntryContainer = (props: Props) => {
       <div className={classes.entryNavigationSection}>
         <Tooltip title={i18n.t('core:openPrevFileTooltip')}>
           <IconButton
-            // title={i18n.t('core:openPrevFileTooltip')}
             aria-label={i18n.t('core:openPrevFileTooltip')}
             data-tid="fileContainerPrevFile"
             onClick={openPrevFile}
@@ -807,7 +801,6 @@ const EntryContainer = (props: Props) => {
         </Tooltip>
         <Tooltip title={i18n.t('core:openNextFileTooltip')}>
           <IconButton
-            // title={i18n.t('core:openNextFileTooltip')}
             aria-label={i18n.t('core:openNextFileTooltip')}
             data-tid="fileContainerNextFile"
             onClick={openNextFile}
@@ -825,7 +818,6 @@ const EntryContainer = (props: Props) => {
         {!(PlatformIO.haveObjectStoreSupport() || AppConfig.isWeb) && (
           <Tooltip title={i18n.t('core:openDirectoryExternally')}>
             <IconButton
-              // title={i18n.t('core:openDirectoryExternally')}
               aria-label={i18n.t('core:openDirectoryExternally')}
               onClick={openNatively}
             >
@@ -835,7 +827,6 @@ const EntryContainer = (props: Props) => {
         )}
         <Tooltip title={i18n.t('core:reloadDirectory')}>
           <IconButton
-            // title={i18n.t('core:reloadDirectory')}
             aria-label={i18n.t('core:reloadDirectory')}
             onClick={reloadDocument}
           >
@@ -845,7 +836,6 @@ const EntryContainer = (props: Props) => {
         {!props.isReadOnlyMode && (
           <Tooltip title={i18n.t('core:deleteDirectory')}>
             <IconButton
-              // title={i18n.t('core:deleteDirectory')}
               aria-label={i18n.t('core:deleteDirectory')}
               onClick={() => setDeleteEntryModalOpened(true)}
             >
@@ -858,20 +848,6 @@ const EntryContainer = (props: Props) => {
   );
 
   const renderFileView = fileOpenerURL => (
-    // if (AppConfig.isElectron) {
-    //   return (
-    //     <webview
-    //       id="webViewer"
-    //       ref={fileViewer => {
-    //         this.fileViewer = fileViewer;
-    //       }}
-    //       className={this.props.classes.fileOpener}
-    //       src={fileOpenerURL}
-    //       allowFullScreen
-    //       preload="./node_modules/@tagspaces/legacy-ext/webview-preload.js"
-    //     />
-    //   );
-    // }
     <iframe
       ref={fileViewer}
       className={props.classes.fileOpener}
@@ -969,7 +945,6 @@ const EntryContainer = (props: Props) => {
         editDocument: editFile,
         nextDocument: openNextFile,
         prevDocument: openPrevFile
-        // reloadDocument: this.reloadDocument,
       }}
       keyMap={{
         nextDocument: keyBindings.nextDocument,
@@ -977,7 +952,6 @@ const EntryContainer = (props: Props) => {
         closeViewer: keyBindings.closeViewer,
         saveDocument: keyBindings.saveDocument,
         editDocument: keyBindings.editDocument
-        // reloadDocument: settings.keyBindings.reloadDocument,
       }}
     >
       {isSaveBeforeCloseConfirmDialogOpened && (
@@ -1014,8 +988,6 @@ const EntryContainer = (props: Props) => {
               setSaveBeforeReloadConfirmDialogOpened(false);
               startSavingFile();
             } else {
-              // isChanged = false;
-              // shouldReload = true;
               setSaveBeforeReloadConfirmDialogOpened(false);
               props.updateOpenedFile(openedFile.path, {
                 ...openedFile,
@@ -1081,10 +1053,7 @@ const EntryContainer = (props: Props) => {
         resizerStyle={{
           backgroundColor: props.theme.palette.divider
         }}
-        // size={this.state.entryPropertiesSplitSize}
-        // minSize={defaultSplitSize}
-        // maxSize={fullSplitSize}
-        // defaultSize={this.state.entryPropertiesSplitSize}
+        style={{ zIndex: 1300 }}
         size={getSplitPanelSize()}
         minSize={openedFile.isFile ? defaultSplitSize : '100%'}
         maxSize={openedFile.isFile ? fullSplitSize : '100%'}
@@ -1253,6 +1222,7 @@ const EntryContainer = (props: Props) => {
                   showNotification={props.showNotification}
                   isReadOnlyMode={props.isReadOnlyMode}
                   currentDirectoryPath={props.currentDirectoryPath}
+                  tileServer={props.tileServer}
                 />
               )}
             </div>
@@ -1288,7 +1258,8 @@ function mapStateToProps(state) {
     settings: state.settings,
     isReadOnlyMode: isReadOnlyMode(state),
     keyBindings: getKeyBindingObject(state),
-    isDesktopMode: isDesktopMode(state)
+    isDesktopMode: isDesktopMode(state),
+    tileServer: getMapTileServer(state)
   };
 }
 
@@ -1301,6 +1272,7 @@ function mapActionCreatorsToProps(dispatch) {
       renameDirectory: AppActions.renameDirectory,
       openFsEntry: AppActions.openFsEntry,
       openFileNatively: AppActions.openFileNatively,
+      openDirectory: AppActions.openDirectory,
       openLink: AppActions.openLink,
       showNotification: AppActions.showNotification,
       openNextFile: AppActions.openNextFile,
@@ -1310,10 +1282,8 @@ function mapActionCreatorsToProps(dispatch) {
       addTags: TaggingActions.addTags,
       removeTags: TaggingActions.removeTags,
       removeAllTags: TaggingActions.removeAllTags,
-      // editTagForEntry: TaggingActions.editTagForEntry,
       updateOpenedFile: AppActions.updateOpenedFile,
       updateThumbnailUrl: AppActions.updateThumbnailUrl,
-      setLastSelectedEntry: AppActions.setLastSelectedEntry,
       setSelectedEntries: AppActions.setSelectedEntries
     },
     dispatch

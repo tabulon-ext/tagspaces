@@ -15,7 +15,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-
 import nl from '../utils/js-webdav-client';
 import {
   extractParentDirectoryPath,
@@ -23,9 +22,9 @@ import {
   getMetaFileLocationForDir,
   extractFileName,
   extractFileExtension
-} from '../utils/paths';
+} from '-/utils/paths';
 import AppConfig from '../config';
-import { FileSystemEntry } from './utils-io';
+import { TS } from '-/tagspaces.namespace';
 
 export default class WebDAVIO {
   davClient: any;
@@ -129,6 +128,10 @@ export default class WebDAVIO {
       return true;
     }
     return false;
+  };
+
+  quitApp = (): void => {
+    window.close();
   };
 
   /**
@@ -322,7 +325,10 @@ export default class WebDAVIO {
         dav.resourcetype._xmlvalue[0].localName === 'collection')
     );
 
-  getEntryMeta = (eentry: FileSystemEntry, metaPath: string): Promise<Object> =>
+  getEntryMeta = (
+    eentry: TS.FileSystemEntry,
+    metaPath: string
+  ): Promise<Object> =>
     new Promise(resolve => {
       if (eentry.isFile) {
         this.loadTextFilePromise(metaPath)
@@ -444,7 +450,7 @@ export default class WebDAVIO {
     content: string,
     overWrite: boolean,
     mode?: string
-  ): Promise<FileSystemEntry> =>
+  ): Promise<TS.FileSystemEntry> =>
     new Promise((resolve, reject) => {
       let isNewFile = false;
       this.davClient.propfind(
@@ -516,7 +522,7 @@ export default class WebDAVIO {
     filePath: string,
     content: string,
     overWrite: boolean
-  ): Promise<FileSystemEntry> {
+  ): Promise<TS.FileSystemEntry> {
     console.log('Saving binary file: ' + filePath);
     return this.saveFilePromise(filePath, content, overWrite);
   }

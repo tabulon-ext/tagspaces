@@ -24,8 +24,6 @@ import Button from '@material-ui/core/Button';
 import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
-import IconButton from '@material-ui/core/IconButton';
-import CloseIcon from '@material-ui/icons/Close';
 import Typography from '@material-ui/core/Typography';
 import Radio from '@material-ui/core/Radio';
 import RadioGroup from '@material-ui/core/RadioGroup';
@@ -50,6 +48,8 @@ import {
 } from '-/reducers/settings';
 import { actions as AppActions } from '-/reducers/app';
 import AppConfig from '-/config';
+import DialogCloseButton from '-/components/dialogs/DialogCloseButton';
+import Links from '-/links';
 
 interface Props {
   classes: any;
@@ -96,17 +96,7 @@ const OnboardingDialog = (props: Props) => {
     >
       <DialogTitle style={{ justifyContent: 'center', textAlign: 'center' }}>
         Welcome to TagSpaces
-        <IconButton
-          aria-label="close"
-          style={{
-            position: 'absolute',
-            right: 5,
-            top: 5
-          }}
-          onClick={onClose}
-        >
-          <CloseIcon />
-        </IconButton>
+        <DialogCloseButton onClose={onClose} />
       </DialogTitle>
       <DialogContent
         style={{
@@ -122,10 +112,10 @@ const OnboardingDialog = (props: Props) => {
         >
           <div
             style={{
-              textAlign: 'center'
+              textAlign: 'center',
+              overflowX: 'hidden'
             }}
           >
-            <Typography variant="h5">Welcome to TagSpaces</Typography>
             <Typography variant="h6">&nbsp;</Typography>
             <img
               style={{ maxHeight: 300, marginTop: 15 }}
@@ -251,7 +241,7 @@ const OnboardingDialog = (props: Props) => {
             <Button
               style={{ marginTop: 20 }}
               onClick={() => {
-                props.openURLExternally(AppConfig.links.webClipper, true);
+                props.openURLExternally(Links.links.webClipper, true);
               }}
               variant="contained"
               color="primary"

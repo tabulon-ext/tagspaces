@@ -19,9 +19,11 @@
 
 import Fuse from 'fuse.js';
 import jmespath from 'jmespath';
-import { Tag } from '-/reducers/taglibrary';
+import OpenLocationCode from 'open-location-code-typescript';
+import { isPlusCode } from '-/utils/misc';
+import { extractTimePeriod } from '-/utils/dates';
 import { Pro } from '../pro';
-import { FileSystemEntry } from './utils-io';
+import { TS } from '-/tagspaces.namespace';
 
 // export type FileTypeGroups = 'images' | 'notes' | 'documents' | 'audio' | 'video' | 'archives';
 
@@ -30,6 +32,8 @@ export const FileTypeGroups = {
   images: [
     'jpg',
     'jpeg',
+    'jif',
+    'jiff',
     'png',
     'gif',
     'bmp',
@@ -49,25 +53,6 @@ export const FileTypeGroups = {
   folders: ['folders'],
   files: ['files'],
   untagged: ['untagged']
-};
-
-export type SearchQuery = {
-  textQuery?: string;
-  fileTypes?: Array<string>;
-  tagsAND?: Array<Tag>;
-  tagsOR?: Array<Tag>;
-  tagsNOT?: Array<Tag>;
-  lastModified?: string;
-  fileSize?: string;
-  searchBoxing?: 'location' | 'folder';
-  forceIndexing?: boolean;
-  currentDirectory?: string;
-  tagTimePeriodFrom?: number | null;
-  tagTimePeriodTo?: number | null;
-  tagPlaceLat?: number | null;
-  tagPlaceLong?: number | null;
-  tagPlaceRadius?: number | null;
-  maxSearchResults?: number;
 };
 
 // id, name, isFile, tags, extension, size, lmdt, path
@@ -111,23 +96,22 @@ export type SearchQuery = {
 const fuseOptions = {
   shouldSort: true,
   threshold: 0.3,
-  location: 0,
-  distance: 100,
+  ignoreLocation: true,
+  distance: 1000,
   tokenize: true,
-  maxPatternLength: 32,
-  minMatchCharLength: 1,
+  minMatchCharLength: 2,
   keys: [
     {
       name: 'name',
-      weight: 0.25
+      weight: 0.3
     },
     {
       name: 'description',
-      weight: 0.25
+      weight: 0.2
     },
     {
       name: 'textContent',
-      weight: 0.25
+      weight: 0.2
     },
     {
       name: 'tags',
@@ -135,7 +119,7 @@ const fuseOptions = {
     },
     {
       name: 'path', // TODO ignore .ts folder, should not be in the index
-      weight: 0.05
+      weight: 0.1
     }
   ]
 };
@@ -144,7 +128,7 @@ const fuseOptions = {
 // filters for all AND and NOT tags. The Pro version can pipe the result into an additional filter for extension instead of tags.title.
 // The final string for the tag search should look like this:
 // index[? tags[? title=='ORTag1' || title=='ORTag2']] | [? tags[? title=='ANDTag1']] | [? tags[? title=='ANDTag2']] | [?!(tags[? title=='NOTTag1'])] | [?!(tags[? title=='NOTTag2'])] | extensionFilter
-function constructjmespathQuery(searchQuery: SearchQuery): string {
+function constructjmespathQuery(searchQuery: TS.SearchQuery): string {
   let jmespathQuery = '';
   const ANDtagsExist = searchQuery.tagsAND && searchQuery.tagsAND.length >= 1;
   const ORtagsExist = searchQuery.tagsOR && searchQuery.tagsOR.length >= 1;
@@ -225,31 +209,74 @@ function constructjmespathQuery(searchQuery: SearchQuery): string {
   return jmespathQuery;
 }
 
-function prepareIndex(index: Array<Object>) {
+function prepareIndex(
+  index: Array<TS.FileSystemEntry>,
+  showUnixHiddenEntries: boolean
+) {
   console.time('PreparingIndex');
-  let resultIndex = [];
-  if (Pro && Pro.Search && Pro.Search.prepareIndex) {
-    resultIndex = Pro.Search.prepareIndex(index);
+  let filteredIndex = [];
+  if (showUnixHiddenEntries) {
+    filteredIndex = index;
   } else {
-    resultIndex = index.map((entry: any) => {
-      const tags = [...entry.tags];
-      if (tags && tags.length) {
-        tags.map(tag => {
-          if (tag.title.toLowerCase() !== tag.title) {
-            tag.originTitle = tag.title;
-            tag.title = tag.title.toLowerCase();
-          }
-          return tag;
-        });
-      }
-      return {
-        ...entry,
-        tags
-      };
-    });
+    filteredIndex = index.filter(
+      (entry: TS.FileSystemEntry) => !entry.name.startsWith('.')
+    );
   }
+  const enhancedIndex = filteredIndex.map((entry: any) => {
+    const tags = [...entry.tags];
+    let lat = null;
+    let lon = null;
+    let fromTime = null;
+    let toTime = null;
+    let enhancedTags: Array<TS.Tag> = [];
+    if (tags && tags.length) {
+      enhancedTags = tags.map(tag => {
+        const enhancedTag: TS.Tag = {
+          ...tag
+        };
+        try {
+          if (isPlusCode(tag.title)) {
+            const coord = OpenLocationCode.decode(tag.title);
+            lat = Number(coord.latitudeCenter.toFixed(7));
+            lon = Number(coord.longitudeCenter.toFixed(7));
+          }
+          const { fromDateTime, toDateTime } = extractTimePeriod(tag.title);
+          if (fromDateTime && toDateTime) {
+            fromTime = fromDateTime.getTime();
+            toTime = toDateTime.getTime();
+          }
+          if (tag.title.toLowerCase() !== tag.title) {
+            enhancedTag.originTitle = tag.title;
+            enhancedTag.title = tag.title.toLowerCase();
+          }
+        } catch (e) {
+          console.warn(
+            'Error parsing tag ' + JSON.stringify(tag) + ' from ' + entry.path
+          );
+        }
+        return enhancedTag;
+      });
+    }
+    const enhancedEntry = {
+      ...entry,
+      tags: enhancedTags
+    };
+    if (lat) {
+      enhancedEntry.lat = lat;
+    }
+    if (lon) {
+      enhancedEntry.lon = lon;
+    }
+    if (fromTime) {
+      enhancedEntry.fromTime = fromTime;
+    }
+    if (toTime) {
+      enhancedEntry.toTime = toTime;
+    }
+    return enhancedEntry;
+  });
   console.timeEnd('PreparingIndex');
-  return resultIndex;
+  return enhancedIndex;
 }
 
 function setOriginTitle(results: Array<Object>) {
@@ -268,13 +295,16 @@ function setOriginTitle(results: Array<Object>) {
 
 export default class Search {
   static searchLocationIndex = (
-    locationContent: Array<FileSystemEntry>,
-    searchQuery: SearchQuery
-  ): Promise<Array<FileSystemEntry> | []> =>
+    locationContent: Array<TS.FileSystemEntry>,
+    searchQuery: TS.SearchQuery
+  ): Promise<Array<TS.FileSystemEntry> | []> =>
     new Promise(resolve => {
       console.time('searchtime');
       const jmespathQuery = constructjmespathQuery(searchQuery);
-      let results = prepareIndex(locationContent);
+      let results = prepareIndex(
+        locationContent,
+        searchQuery.showUnixHiddenEntries
+      );
       let searched = false;
 
       // Limiting the search to current folder only (with sub-folders)
@@ -304,8 +334,38 @@ export default class Search {
         const resultCount = results.length;
         console.log('fuse query: ' + searchQuery.textQuery);
         console.time('fuse');
-        const fuse = new Fuse(results, fuseOptions);
-        results = fuse.search(searchQuery.textQuery);
+        if (
+          searchQuery.searchType &&
+          searchQuery.searchType.includes('strict')
+        ) {
+          results = results.filter(entry => {
+            const ignoreCase = searchQuery.searchType === 'semistrict';
+            const textQuery = ignoreCase
+              ? searchQuery.textQuery.toLowerCase()
+              : searchQuery.textQuery;
+            // const name = ignoreCase ? entry.name && entry.name.toLowerCase() : entry.name;
+            const description =
+              ignoreCase && entry.description
+                ? entry.description.toLowerCase()
+                : entry.description;
+            const textContent =
+              ignoreCase && entry.textContent
+                ? entry.textContent.toLowerCase()
+                : entry.textContent;
+            const path = ignoreCase
+              ? entry.path && entry.path.toLowerCase()
+              : entry.path;
+            // const foundInName = name && name.includes(textQuery);
+            const foundInDescr = description && description.includes(textQuery);
+            const foundInContent =
+              textContent && textContent.includes(textQuery);
+            const foundInPath = path && path.includes(textQuery);
+            return foundInPath || foundInDescr || foundInContent; // || foundInName;
+          });
+        } else {
+          const fuse = new Fuse(results, fuseOptions);
+          results = fuse.search(searchQuery.textQuery);
+        }
         console.timeEnd('fuse');
         searched = searched || results.length <= resultCount;
       }

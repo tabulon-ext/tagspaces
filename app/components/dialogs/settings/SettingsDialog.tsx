@@ -23,6 +23,7 @@ import { withStyles } from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
+import Dialog from '@material-ui/core/Dialog';
 import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
@@ -30,14 +31,15 @@ import withMobileDialog from '@material-ui/core/withMobileDialog';
 import uuidv1 from 'uuid';
 import { useStateWithCallbackLazy } from 'use-state-with-callback';
 import ConfirmDialog from '../ConfirmDialog';
-import GenericDialog from '../GenericDialog';
 import SettingsGeneral from '../settings/SettingsGeneral';
 import SettingsKeyBindings from '../settings/SettingsKeyBindings';
 import SettingsFileTypes from '../settings/SettingsFileTypes';
 import i18n from '-/services/i18n';
 import { actions, getSupportedFileTypes } from '-/reducers/settings';
-import { extend } from '-/utils/misc';
+import { clearAllURLParams, extend } from '-/utils/misc';
 import AppConfig from '-/config';
+import SettingsAdvanced from '-/components/dialogs/settings/SettingsAdvanced';
+import DialogCloseButton from '-/components/dialogs/DialogCloseButton';
 
 const styles: any = () => ({
   mainContent: {
@@ -147,7 +149,7 @@ const SettingsDialog = (props: Props) => {
 
     setIsValidationInProgress(true);
 
-    const isValid = validateSelectedFileTypes();
+    const isValid = validateSelectedFileTypes(newItems);
 
     if (!isValid) {
       return false;
@@ -156,10 +158,10 @@ const SettingsDialog = (props: Props) => {
     setSupportedFileTypes(newItems);
   };
 
-  const validateSelectedFileTypes = () => {
+  const validateSelectedFileTypes = newItems => {
     let isValid = true;
 
-    items.map(item => {
+    newItems.map(item => {
       const hasDuplicates =
         items.filter(targetItem => targetItem.type === item.type).length > 1;
 
@@ -184,14 +186,17 @@ const SettingsDialog = (props: Props) => {
   };
 
   const renderTitle = () => (
-    <React.Fragment>
-      <DialogTitle>{i18n.t('core:options')}</DialogTitle>
+    <>
+      <DialogTitle>
+        {i18n.t('core:settings')}
+        <DialogCloseButton onClose={onClose} />
+      </DialogTitle>
       <AppBar position="static" color="default">
         <Tabs
           value={currentTab}
           onChange={handleTabClick}
           indicatorColor="primary"
-          variant="fullWidth"
+          // variant="scrollable"
         >
           <Tab
             data-tid="generalSettingsDialog"
@@ -205,9 +210,13 @@ const SettingsDialog = (props: Props) => {
             data-tid="keyBindingsSettingsDialog"
             label={i18n.t('core:keyBindingsTab')}
           />
+          <Tab
+            data-tid="advancedSettingsDialogTID"
+            label={i18n.t('core:advancedSettingsTab')}
+          />
         </Tabs>
       </AppBar>
-    </React.Fragment>
+    </>
   );
 
   const renderContent = () => (
@@ -241,6 +250,7 @@ const SettingsDialog = (props: Props) => {
           content={i18n.t('core:confirmResetSettings')}
           confirmCallback={result => {
             if (result) {
+              clearAllURLParams();
               localStorage.clear();
               // eslint-disable-next-line no-restricted-globals
               location.reload();
@@ -262,9 +272,7 @@ const SettingsDialog = (props: Props) => {
         className={props.classes.mainContent}
         ref={settingsFileTypeRef}
       >
-        {currentTab === 0 && (
-          <SettingsGeneral showResetSettings={setIsResetSettingsDialogOpened} />
-        )}
+        {currentTab === 0 && <SettingsGeneral />}
         {currentTab === 1 && (
           <SettingsFileTypes
             items={items}
@@ -279,6 +287,11 @@ const SettingsDialog = (props: Props) => {
           />
         )}
         {currentTab === 2 && <SettingsKeyBindings />}
+        {currentTab === 3 && (
+          <SettingsAdvanced
+            showResetSettings={setIsResetSettingsDialogOpened}
+          />
+        )}
       </div>
     </DialogContent>
   );
@@ -312,14 +325,17 @@ const SettingsDialog = (props: Props) => {
 
   const { fullScreen, open, onClose } = props;
   return (
-    <GenericDialog
-      open={open}
-      onClose={onClose}
+    <Dialog
       fullScreen={fullScreen}
-      renderTitle={renderTitle}
-      renderContent={renderContent}
-      renderActions={renderActions}
-    />
+      open={open}
+      keepMounted
+      scroll="paper"
+      onClose={onClose}
+    >
+      {renderTitle()}
+      {renderContent()}
+      {renderActions()}
+    </Dialog>
   );
 };
 

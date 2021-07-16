@@ -48,7 +48,6 @@ export async function openContextEntryMenu(selector, menuOperation) {
   // selector is current selector location for element in perspectiveGridTable or perspectiveListTable (full xpath path to element)
   // menuOption is selector for current menu operation
   await clickOn(selector, { button: 'right' });
-  await global.client.pause(500);
   await clickOn('[data-tid=' + menuOperation + ']');
 }
 
@@ -81,7 +80,7 @@ export async function renameFolder() {
   await clickOn('[data-tid=folderContainerOpenDirMenu]');
   await clickOn('[data-tid=renameDirectory]');
   // set new dir name
-  await setInputKeys('renameDirectoryDialogInput', newDirectoryName);
-  await clickOn('[data-tid=confirmRenameDirectory]');
+  await setInputKeys('renameEntryDialogInput', newDirectoryName);
+  await clickOn('[data-tid=confirmRenameEntry]');
   return newDirectoryName;
 }

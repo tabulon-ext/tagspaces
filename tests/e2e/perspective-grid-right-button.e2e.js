@@ -188,6 +188,10 @@ describe('TST50** - Right button on a file', () => {
       await expectTagsExist(filesList[i], [testTagName], true);
     }
 
+    //cleanup
+    await selectRowFiles([0, 1, 2]);
+    await AddRemoveTagsToSelectedFiles([testTagName], false);
+
     /*const classNotSelected = await getGridCellClass(0);
     const classSelected = await selectAllFiles(classNotSelected);
     expect(classNotSelected).not.toBe(classSelected);
@@ -273,9 +277,10 @@ describe('TST50** - Right button on a file', () => {
   /**
    * TODO github minio (expected selector to exist=false after 5s)
    */
-  test('TST5028 - Move - Copy file (file menu) [minio,electron]', async () => {
+  test('TST5028 - Move - Copy file (file menu) [web,minio,electron]', async () => {
     // Move file in child folder
-    await searchEngine('eml');
+    const fileExtension = 'pdf'; //'eml' -> todo search found extra files (.gitkeep) with fuseOptions = {threshold: 0.4,
+    await searchEngine(fileExtension);
     await openContextEntryMenu(
       perspectiveGridTable + firstFile,
       'fileMenuMoveCopyFile'
@@ -290,9 +295,12 @@ describe('TST50** - Right button on a file', () => {
     await clickOn('#clearSearchID');
     await global.client.pause(500);
     await doubleClickOn(perspectiveGridTable + firstFolder);
-    await searchEngine('eml', { reindexing: true }); // TODO temp fix: https://trello.com/c/ZfcGGvOM/527-moved-files-is-not-indexing-not-found-in-search
+    await searchEngine(fileExtension, { reindexing: true }); // TODO temp fix: https://trello.com/c/ZfcGGvOM/527-moved-files-is-not-indexing-not-found-in-search
+    if (global.isWeb) {
+      await global.client.pause(500);
+    }
     let firstFileName = await getGridFileName(0);
-    expect(firstFileName).toBe('sample.eml');
+    expect(firstFileName).toBe('sample.' + fileExtension);
 
     //Copy file in parent directory
     await openContextEntryMenu(
@@ -305,16 +313,16 @@ describe('TST50** - Right button on a file', () => {
     await clickOn('#clearSearchID');
     await clickOn('[data-tid=gridPerspectiveOnBackButton]');
     await global.client.pause(500);
-    await searchEngine('eml');
+    await searchEngine(fileExtension);
     firstFileName = await getGridFileName(0);
-    expect(firstFileName).toBe('sample.eml');
+    expect(firstFileName).toBe('sample.' + fileExtension);
 
     // cleanup
     await deleteFileFromMenu();
     await expectElementExist(selectorFile, false);
   });
 
-  it.skip('TST5029 - Add file from file manager with dnd [Electron, manual]', async () => {});
+  it.skip('TST5029 - Add file from file manager with dnd [manual]', async () => {});
 
   test('TST5033 - Open directory (directory menu) [web,minio,electron]', async () => {
     // open empty_folder
@@ -335,11 +343,8 @@ describe('TST50** - Right button on a file', () => {
       perspectiveGridTable + firstFolder,
       'renameDirectory'
     );
-    const oldDirName = await setInputKeys(
-      'renameDirectoryDialogInput',
-      newDirName
-    );
-    await clickOn('[data-tid=confirmRenameDirectory]');
+    const oldDirName = await setInputKeys('renameEntryDialogInput', newDirName);
+    await clickOn('[data-tid=confirmRenameEntry]');
     await waitForNotification();
 
     //turn dir name back
@@ -347,11 +352,8 @@ describe('TST50** - Right button on a file', () => {
       perspectiveGridTable + firstFolder,
       'renameDirectory'
     );
-    const renamedDir = await setInputKeys(
-      'renameDirectoryDialogInput',
-      oldDirName
-    );
-    await clickOn('[data-tid=confirmRenameDirectory]');
+    const renamedDir = await setInputKeys('renameEntryDialogInput', oldDirName);
+    await clickOn('[data-tid=confirmRenameEntry]');
     await waitForNotification();
     expect(renamedDir).toBe(newDirName);
   });
@@ -372,13 +374,13 @@ describe('TST50** - Right button on a file', () => {
       '[data-tid=fsEntryName_' + testFolder + ']',
       false
     );
+    // dir back to check if parent folder exist
+    // await clickOn('[data-tid=gridPerspectiveOnBackButton]');
+    // await expectElementExist(selectorFolder, true);
   });
 
   test('TST5036 - Open directory properties (directory menu) [web,minio,electron]', async () => {
-    await openContextEntryMenu(
-      perspectiveGridTable + firstFolder,
-      'showProperties'
-    );
+    await openContextEntryMenu(selectorFolder, 'showProperties');
     await expectElementExist('[data-tid=fileNameProperties]', true);
   });
 

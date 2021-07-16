@@ -25,6 +25,7 @@ import withMobileDialog from '@material-ui/core/withMobileDialog';
 import Dialog from '@material-ui/core/Dialog';
 import i18n from '-/services/i18n';
 import ThirdPartyLibs from '-/third-party.txt';
+import DialogCloseButton from '-/components/dialogs/DialogCloseButton';
 
 interface Props {
   open: boolean;
@@ -42,14 +43,18 @@ const ThirdPartyLibsDialog = (props: Props) => {
       keepMounted
       scroll="paper"
     >
-      <DialogTitle>{i18n.t('core:thirdPartyLibs')}</DialogTitle>
+      <DialogTitle>
+        {i18n.t('core:thirdPartyLibs')} <DialogCloseButton onClose={onClose} />
+      </DialogTitle>
       <DialogContent style={{ overflowX: 'auto' }}>
-        <pre style={{ whiteSpace: 'pre-wrap' }}>{ThirdPartyLibs}</pre>
+        <pre style={{ whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+          {ThirdPartyLibs}
+        </pre>
       </DialogContent>
       <DialogActions>
         <Button
           data-tid="confirmThirdPartyLibsDialog"
-          onClick={props.onClose}
+          onClick={onClose}
           color="primary"
         >
           {i18n.t('core:ok')}

@@ -27,6 +27,7 @@ export const AppConfig = {
   tagspacesAppPath: '/tagspaces/',
   metaFolder: '.ts',
   metaFolderFile: 'tsm.json',
+  folderLocationsFile: 'tsl.json',
   folderIndexFile: 'tsi.json',
   folderThumbFile: 'tst.jpg',
   metaFileExt: '.json',
@@ -41,51 +42,11 @@ export const AppConfig = {
   maxThumbSize: 400,
   thumbBgColor: '#FFFFFF',
   indexerLimit: 200000,
+  mainToolbarHeight: 105,
   maxIndexAge: 10 * 60 * 1000, // 10 minutes
   // maxSearchResult: 1000,
   defaultFileColor: '#808080',
   defaultFolderColor: '#582727', // 555 transparent #FDEEBD #ff791b #2c001e #880e4f
-  links: {
-    checkNewVersionURL: 'https://www.tagspaces.org/releases/tagspaces.json',
-    productsOverview: 'https://www.tagspaces.org/products/',
-    productProObjectStore:
-      'https://www.tagspaces.org/products/pro/#connectingObjectStores',
-    productProAdvancedSearch:
-      'https://www.tagspaces.org/products/pro/#advancedSearch',
-    productProFileFolderMeta:
-      'https://www.tagspaces.org/products/pro/#fileFolderMeta',
-    productProThumbnailsGeneration:
-      'https://www.tagspaces.org/products/pro/#thumbnailsGeneration',
-    productProGeoTagging: 'https://www.tagspaces.org/usecases/geotagging/',
-    productPro: 'https://www.tagspaces.org/products/pro/',
-    productEnterprise: 'https://www.tagspaces.org/products/enterprise/',
-    downloadURL: 'https://www.tagspaces.org/downloads/',
-    changelogURL: 'https://www.tagspaces.org/whatsnew/',
-    imprintURL: 'https://www.tagspaces.org/about/imprint/',
-    privacyURL: 'https://www.tagspaces.org/about/privacy/',
-    suggestFeature: 'https://trello.com/b/TGeG5bi9',
-    reportIssue: 'https://github.com/tagspaces/tagspaces/issues/',
-    helpTranslating: 'https://www.transifex.com/tagspaces/tagspaces/',
-    webClipperChrome:
-      'https://chrome.google.com/webstore/detail/tagspaces-web-clipper/ldalmgifdlgpiiadeccbcjojljeanhjk',
-    webClipperFirefox:
-      'https://addons.mozilla.org/en-US/firefox/addon/tagspaces/',
-    webClipper: 'https://www.tagspaces.org/products/webclipper/',
-    twitter: 'https://twitter.com/tagspaces',
-    facebook: 'https://www.facebook.com/tagspacesapp',
-    emailContact: 'mailto:contactus@tagspaces.org?subject=App'
-  },
-  documentationLinks: {
-    general: 'https://docs.tagspaces.org/',
-    defaultPerspective: 'https://docs.tagspaces.org/perspectives/grid',
-    mapiquePerspective: 'https://docs.tagspaces.org/perspectives/mapique',
-    treevizPerspective: 'https://docs.tagspaces.org/perspectives/treeviz',
-    galleryPerspective: 'https://docs.tagspaces.org/perspectives/gallery',
-    locations: 'https://docs.tagspaces.org/ui/locations',
-    taglibrary: 'https://docs.tagspaces.org/ui/taglibrary',
-    search: 'https://docs.tagspaces.org/search',
-    settings: 'https://docs.tagspaces.org/ui/settings'
-  },
   isElectron: navigator.userAgent.toLowerCase().indexOf(' electron/') > -1,
   isFirefox: navigator.userAgent.toLowerCase().includes('firefox'), // typeof InstallTrigger !== 'undefined';
   isWin: navigator.appVersion.includes('Win'),
@@ -99,6 +60,17 @@ export const AppConfig = {
   isCordovaAndroid,
   isCordova: isCordovaiOS || isCordovaAndroid,
   isMobile: isCordovaiOS || isCordovaAndroid || isIOS || isAndroid,
+  isAmplify: window.ExtIsAmplify !== undefined ? window.ExtIsAmplify : false,
+  saveLocationsInBrowser:
+    window.ExtSaveLocationsInBrowser !== undefined
+      ? window.ExtSaveLocationsInBrowser
+      : false,
+  useSidecarsForFileTagging:
+    window.ExtUseSidecarsForFileTagging !== undefined
+      ? window.ExtUseSidecarsForFileTagging
+      : false,
+  useSidecarsForFileTaggingDisableSetting:
+    window.ExtUseSidecarsForFileTagging !== undefined,
   customLogo: window.ExtLogoURL || false,
   showAdvancedSearch:
     window.ExtShowAdvancedSearch !== undefined
@@ -111,6 +83,7 @@ export const AppConfig = {
       ? window.ExtShowWelcomePanel
       : true,
   locationsReadOnly: window.ExtLocations !== undefined,
+  mapTileServers: window.ExtMapTileServers || false,
   sidebarColor: window.ExtSidebarColor || '#2C001E', // '#00D1A1' // #008023
   sidebarSelectionColor: window.ExtSidebarSelectionColor || '#880E4F',
   lightThemeLightColor: window.ExtLightThemeLightColor || '#dcf3ec',

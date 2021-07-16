@@ -78,35 +78,49 @@ describe('TST50 - Perspective Grid', () => {
       await global.client.pause(500);
     });
 
-    test('TST10** - Sort by name [web,minio,electron]', async () => {
+    test('TST10xx - Sort by name [web,minio,electron]', async () => {
+      //DESC
       await clickOn('[data-tid=gridPerspectiveSortByName]');
       await global.client.pause(500); // TODO
       let firstFileName = await getGridFileName(0);
-      expect(firstFileName).toBe('sample.bmp');
+      expect(firstFileName).toBe('sample_exif.jpg');
       // ASC
       await clickOn('[data-tid=gridPerspectiveSortMenu]');
       await global.client.pause(500);
       await clickOn('[data-tid=gridPerspectiveSortByName]');
       await global.client.pause(500); // TODO
       firstFileName = await getGridFileName(0);
-      expect(firstFileName).toBe('sample_exif.jpg');
+      expect(firstFileName).toBe('sample.bmp');
     });
 
-    test('TST10** - Sort by size [web,minio,electron]', async () => {
+    test('TST10xx - Sort by size [web,minio,electron]', async () => {
       await clickOn('[data-tid=gridPerspectiveSortBySize]');
       await global.client.pause(500); // TODO
-      const firstFileName = await getGridFileName(0);
+      let firstFileName = await getGridFileName(0);
+      expect(firstFileName).toBe('sample.desktop');
+
+      //ASC
+      await clickOn('[data-tid=gridPerspectiveSortMenu]');
+      await global.client.pause(500);
+      await clickOn('[data-tid=gridPerspectiveSortBySize]');
+      await global.client.pause(500); // TODO
+      firstFileName = await getGridFileName(0);
       expect(firstFileName).toBe('sample.ogv');
     });
 
-    test('TST10** - Sort by date [web,minio,electron]', async () => {
+    test('TST10xx - Sort by date [web,minio,electron]', async () => {
       await clickOn('[data-tid=gridPerspectiveSortByDate]');
       await global.client.pause(500); //TODO
 
       await createTxtFile();
       // await global.client.pause(500);
-      let firstFileName = await getGridFileName(0);
 
+      // ASC
+      await clickOn('[data-tid=gridPerspectiveSortMenu]');
+      await global.client.pause(500);
+      await clickOn('[data-tid=gridPerspectiveSortByDate]');
+
+      let firstFileName = await getGridFileName(0);
       expect(firstFileName).toBe('note.txt');
 
       //cleanup
@@ -117,17 +131,31 @@ describe('TST50 - Perspective Grid', () => {
       // expect(firstFileName).not.toBe('note.txt'); TODO its have note.txt from another tests
     });
 
-    test('TST10** - Sort by extension [web,minio,electron]', async () => {
+    test('TST10xx - Sort by extension [web,minio,electron]', async () => {
       await clickOn('[data-tid=gridPerspectiveSortByExt]');
       await global.client.pause(1000); // TODO
-      const firstFileName = await getGridFileName(0);
+      let firstFileName = await getGridFileName(0);
+      expect(firstFileName).toBe('sample.bmp');
+
+      await clickOn('[data-tid=gridPerspectiveSortMenu]');
+      await global.client.pause(500);
+      await clickOn('[data-tid=gridPerspectiveSortByExt]');
+      await global.client.pause(500); // TODO
+      firstFileName = await getGridFileName(0);
       expect(firstFileName).toBe('sample.zip');
     });
 
-    test('TST10** - Sort by tags [web,minio,electron]', async () => {
+    test('TST10xx - Sort by tags [web,minio,electron]', async () => {
       await clickOn('[data-tid=gridPerspectiveSortByFirstTag]');
       await global.client.pause(1000); // TODO
-      const firstFileName = await getGridFileName(0);
+      let firstFileName = await getGridFileName(0);
+      expect(firstFileName).toBe('sample.bmp');
+      //ASC
+      await clickOn('[data-tid=gridPerspectiveSortMenu]');
+      await global.client.pause(500);
+      await clickOn('[data-tid=gridPerspectiveSortByFirstTag]');
+      await global.client.pause(500); // TODO
+      firstFileName = await getGridFileName(0);
       expect(firstFileName).toBe('sample_exif.jpg');
     });
   });
@@ -279,6 +307,9 @@ describe('TST50 - Perspective Grid', () => {
     await waitForNotification();
 
     await doubleClickOn(selectorFolder);
+    if (global.isWeb) {
+      await global.client.pause(500);
+    }
     const firstFileName = await getGridFileName(0);
     expect(firstFileName).toBe(sampleFileName);
     // cleanup
@@ -286,7 +317,7 @@ describe('TST50 - Perspective Grid', () => {
     await expectElementExist(selectorFile, false);
   });
 
-  it.skip('TST5009 - Copy file on different partition [Electron, manual]', async () => {});
+  it.skip('TST5009 - Copy file on different partition [manual]', async () => {});
 
   /**
    * TODO reindexing don't work in web
@@ -315,9 +346,9 @@ describe('TST50 - Perspective Grid', () => {
     await expectElementExist(selectorFile, false);
   });
 
-  it.skip('TST5011 - Move file drag&drop in location navigator [Electron, manual]', async () => {});
+  it.skip('TST5011 - Move file drag&drop in location navigator [manual]', async () => {});
 
-  it.skip('TST5012 - Move file different partition [Electron, manual]', async () => {});
+  it.skip('TST5012 - Move file different partition [manual]', async () => {});
 
   test('TST5013 - Delete files from selection (many files) [web,minio,electron]', async () => {
     //open Option menu
@@ -358,7 +389,7 @@ describe('TST50 - Perspective Grid', () => {
     await expectElementExist(selectorFile, false);*/
   });
 
-  it.skip('TST5015 - Tag file drag&drop in perspective [Electron, manual]', async () => {});
+  it.skip('TST5015 - Tag file drag&drop in perspective [manual]', async () => {});
 
   /*test('TST51** - Show/Hide directories in perspective view', async () => { //TODO
     await global.client.waitForVisible(

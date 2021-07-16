@@ -17,8 +17,7 @@
  */
 
 import AppConfig from '../config';
-import { Tag } from '-/reducers/taglibrary';
-import { Location } from '-/reducers/locations';
+import { TS } from '-/tagspaces.namespace';
 
 export function baseName(
   dirPath: string,
@@ -67,6 +66,9 @@ export function getMetaDirectoryPath(
   directoryPath: string,
   dirSeparator: string // = AppConfig.dirSeparator
 ) {
+  if (directoryPath.endsWith(AppConfig.metaFolder + dirSeparator)) {
+    return directoryPath;
+  }
   return (
     (directoryPath ? normalizePath(directoryPath) + dirSeparator : '') +
     AppConfig.metaFolder
@@ -88,6 +90,25 @@ export function getMetaFileLocationForFile(
     extractFileName(entryPath, dirSeparator) +
     AppConfig.metaFileExt
   );
+}
+
+export function getFileLocationFromMetaFile(
+  entryPath: string,
+  dirSeparator: string // = AppConfig.dirSeparator
+) {
+  let containingFolder = extractContainingDirectoryPath(
+    entryPath,
+    dirSeparator
+  );
+  containingFolder = containingFolder.replace(
+    dirSeparator + AppConfig.metaFolder,
+    ''
+  );
+  const fileName = extractFileName(entryPath, dirSeparator).replace(
+    AppConfig.metaFileExt,
+    ''
+  );
+  return containingFolder + dirSeparator + fileName;
 }
 
 export function getThumbFileLocationForFile(
@@ -122,10 +143,11 @@ export function getThumbFileLocationForDirectory(
 
 export function getMetaFileLocationForDir(
   entryPath: string,
-  dirSeparator: string // = AppConfig.dirSeparator
+  dirSeparator: string, // = AppConfig.dirSeparator
+  metaFile: string = AppConfig.metaFolderFile
 ) {
   const metaFolder = getMetaDirectoryPath(entryPath, dirSeparator);
-  return metaFolder + dirSeparator + AppConfig.metaFolderFile;
+  return metaFolder + dirSeparator + metaFile;
 }
 
 export function extractFileName(
@@ -305,28 +327,43 @@ export function extractTitle(
   return title;
 }
 
+/**
+ * Remove Tags from fileName
+ * @param fileName
+ */
+export function cleanFileName(fileName: string) {
+  const beginTagContainer = fileName.indexOf(AppConfig.beginTagContainer);
+  const endTagContainer = fileName.lastIndexOf(AppConfig.endTagContainer);
+  if (beginTagContainer >= 0 && beginTagContainer < endTagContainer) {
+    return (
+      fileName.slice(0, beginTagContainer) +
+      fileName.slice(endTagContainer + 1, fileName.length)
+    );
+  }
+  return fileName;
+}
+
 export function extractTagsAsObjects(
   filePath: string,
   tagDelimiter: string = AppConfig.tagDelimiter,
   dirSeparator: string // = AppConfig.dirSeparator
-): Array<Tag> {
+): Array<TS.Tag> {
   const tagsInFileName = extractTags(filePath, tagDelimiter, dirSeparator);
-  const tagArray = [];
-  tagsInFileName.map(tag => {
-    tagArray.push({
-      title: '' + tag,
-      type: 'plain'
-    });
-    return true;
-  });
-  return tagArray;
+  return tagsAsObjects(tagsInFileName);
+}
+
+export function tagsAsObjects(tags: Array<string>): Array<TS.Tag> {
+  return tags.map(tag => ({
+    title: '' + tag,
+    type: 'plain'
+  }));
 }
 
 export function extractTags(
   filePath: string,
   tagDelimiter: string = AppConfig.tagDelimiter,
   dirSeparator: string // = AppConfig.dirSeparator
-) {
+): Array<string> {
   // console.log('Extracting tags from: ' + filePath);
   const fileName = extractFileName(filePath, dirSeparator);
   // WithoutExt
@@ -355,7 +392,7 @@ export function extractTags(
   return cleanedTags;
 }
 
-export function getLocationPath(location: Location) {
+export function getLocationPath(location: TS.Location) {
   if (location) {
     if (location.path) {
       return location.path;
@@ -372,7 +409,10 @@ export function getLocationPath(location: Location) {
  * @param filePath
  * @param locations
  */
-export function extractLocation(filePath: string, locations: Array<Location>) {
+export function extractLocation(
+  filePath: string,
+  locations: Array<TS.Location>
+) {
   let currentLocation;
   const path = filePath.replace(/[/\\]/g, '');
   for (let i = 0; i < locations.length; i += 1) {
@@ -388,4 +428,23 @@ export function extractLocation(filePath: string, locations: Array<Location>) {
     }
   }
   return currentLocation;
+}
+
+/**
+ * @param paths -the first is DirSeparator
+ */
+export function joinPaths(...paths) {
+  let result = '';
+  const dirSeparator = paths[0];
+  if (dirSeparator) {
+    for (let i = 1; i < paths.length; i += 1) {
+      result =
+        result +
+        (result.endsWith(dirSeparator) || paths[i].startsWith(dirSeparator)
+          ? ''
+          : dirSeparator) +
+        paths[i];
+    }
+  }
+  return result;
 }

@@ -27,9 +27,10 @@ import {
   getThumbFileLocationForFile,
   getMetaFileLocationForFile,
   extractFileExtension,
-  cleanTrailingDirSeparator
+  getMetaFileLocationForDir,
+  getThumbFileLocationForDirectory
 } from '-/utils/paths';
-import { FileSystemEntry } from '-/services/utils-io';
+import { TS } from '-/tagspaces.namespace';
 
 export default class ObjectStoreIO {
   objectStore = undefined;
@@ -50,6 +51,7 @@ export default class ObjectStoreIO {
               endpoint: endpoint as string,
               accessKeyId: this.config.accessKeyId,
               secretAccessKey: this.config.secretAccessKey,
+              sessionToken: this.config.sessionToken,
               s3ForcePathStyle: true, // needed for minio
               signatureVersion: 'v4', // needed for minio
               logger: console
@@ -75,6 +77,10 @@ export default class ObjectStoreIO {
     });
 
   getURLforPath = (path: string, expirationInSeconds: number = 900): string => {
+    if (!this.objectStore) {
+      console.log('Object store not configured in getURLforPath');
+      return '';
+    }
     if (!path || path.length < 1) {
       console.warn('Wrong path param for getURLforPath');
       return '';
@@ -84,16 +90,25 @@ export default class ObjectStoreIO {
       Key: path,
       Expires: expirationInSeconds
     };
-    return this.objectStore.getSignedUrl('getObject', params);
+    try {
+      return this.objectStore.getSignedUrl('getObject', params);
+    } catch (e) {
+      console.warn('Error by getSignedUrl' + e.toString());
+      return '';
+    }
   };
 
-  listMetaDirectoryPromise = async (path: string): Promise<Array<any>> => {
-    const promise: Promise<Array<any>> = new Promise(resolve => {
+  quitApp = (): void => {
+    window.close();
+  };
+
+  listMetaDirectoryPromise = async (path: string): Promise<Array<any>> =>
+    new Promise(resolve => {
       const entries = [];
       let entry;
       if (!this.objectStore) {
         console.log('Object store not configured. Exiting');
-        return false;
+        return resolve(entries);
       }
 
       const normalizedPath = normalizePath(this.normalizeRootPath(path));
@@ -137,9 +152,6 @@ export default class ObjectStoreIO {
         return resolve(entries);
       });
     });
-    const result = await promise;
-    return result;
-  };
 
   listDirectoryPromise = (
     path: string,
@@ -147,16 +159,17 @@ export default class ObjectStoreIO {
   ): Promise<Array<Object>> =>
     new Promise(async resolve => {
       const enhancedEntries = [];
-      let entryPath;
-      let metaFolderPath;
-      let stats;
+      // let entryPath;
+      // let metaFolderPath;
+      // let stats;
       let eentry;
-      const containsMetaFolder = false;
+      // const containsMetaFolder = false;
       // const metaMetaFolder = AppConfig.metaFolder + AppConfig.dirSeparator + AppConfig.metaFolder;
 
       if (!this.objectStore) {
         console.log('Object store not configured. Exiting');
-        return false;
+        resolve(undefined); //enhancedEntries); empty dir is not the same with this state
+        return;
       }
 
       // this.listMetaDirectoryPromise(path).then((entries) => {
@@ -165,7 +178,10 @@ export default class ObjectStoreIO {
       // }).catch((error) => {
       //   console.warn('Error loading meta files: ' + JSON.stringify(error));
       // });
-      const metaContent = await this.listMetaDirectoryPromise(path);
+      let metaContent = [];
+      if (!lite) {
+        metaContent = await this.listMetaDirectoryPromise(path);
+      }
       // console.log('Meta folder content: ' + JSON.stringify(metaContent));
 
       const params = {
@@ -230,7 +246,9 @@ export default class ObjectStoreIO {
           if (eentry.path !== params.Prefix) {
             // skipping the current directory
             enhancedEntries.push(eentry);
-            metaPromises.push(this.getEntryMeta(eentry));
+            if (!lite) {
+              metaPromises.push(this.getEntryMeta(eentry));
+            }
           }
           if (window.walkCanceled) {
             resolve(enhancedEntries);
@@ -240,14 +258,15 @@ export default class ObjectStoreIO {
         // Handling files
         data.Contents.forEach(file => {
           // console.warn(JSON.stringify(file));
-          let thumbPath = getThumbFileLocationForFile(file.Key, '/');
-          const thumbAvailable = metaContent.find(
-            (obj: any) => obj.path === thumbPath
-          );
-          if (thumbAvailable) {
-            thumbPath = this.getURLforPath(thumbPath, 604800); // 60 * 60 * 24 * 7 = 1 week
-          } else {
-            thumbPath = '';
+          let thumbPath = '';
+          if (!lite) {
+            const thumbFilePath = getThumbFileLocationForFile(file.Key, '/');
+            const thumbAvailable = metaContent.find(
+              (obj: any) => obj.path === thumbFilePath
+            );
+            if (thumbAvailable) {
+              thumbPath = this.getURLforPath(thumbFilePath, 604800); // 60 * 60 * 24 * 7 = 1 week
+            }
           }
 
           eentry = {};
@@ -262,12 +281,14 @@ export default class ObjectStoreIO {
           if (file.Key !== params.Prefix) {
             // skipping the current folder
             enhancedEntries.push(eentry);
-            const metaFilePath = getMetaFileLocationForFile(file.Key, '/');
-            const metaFileAvailable = metaContent.find(
-              (obj: any) => obj.path === metaFilePath
-            );
-            if (metaFileAvailable) {
-              metaPromises.push(this.getEntryMeta(eentry));
+            if (!lite) {
+              const metaFilePath = getMetaFileLocationForFile(file.Key, '/');
+              const metaFileAvailable = metaContent.find(
+                (obj: any) => obj.path === metaFilePath
+              );
+              if (metaFileAvailable) {
+                metaPromises.push(this.getEntryMeta(eentry));
+              }
             }
           }
         });
@@ -292,7 +313,7 @@ export default class ObjectStoreIO {
       });
     });
 
-  getEntryMeta = async (eentry: FileSystemEntry): Promise<Object> => {
+  getEntryMeta = async (eentry: TS.FileSystemEntry): Promise<Object> => {
     const promise = new Promise(async resolve => {
       if (eentry.isFile) {
         const metaFilePath = getMetaFileLocationForFile(eentry.path, '/');
@@ -306,11 +327,10 @@ export default class ObjectStoreIO {
           !eentry.path.includes(AppConfig.metaFolder + '/')
         ) {
           // skipping meta folder
-          const folderTmbPath =
-            eentry.path +
-            AppConfig.metaFolder +
-            '/' +
-            AppConfig.folderThumbFile;
+          const folderTmbPath = getThumbFileLocationForDirectory(
+            eentry.path,
+            AppConfig.dirSeparator
+          );
           const folderThumbProps = await this.getPropertiesPromise(
             folderTmbPath
           );
@@ -559,10 +579,7 @@ export default class ObjectStoreIO {
   }
 
   normalizeRootPath(filePath: string) {
-    filePath = filePath.replace(
-      new RegExp(AppConfig.dirSeparator + AppConfig.dirSeparator + '+', 'g'),
-      '/'
-    );
+    filePath = filePath.replace(new RegExp('//+', 'g'), '/');
     /* if(filePath.indexOf(AppConfig.dirSeparator) === 0){
       filePath = filePath.substr(AppConfig.dirSeparator.length);
     } */
@@ -584,7 +601,7 @@ export default class ObjectStoreIO {
       request: () => any
     ) => void,
     onAbort?: () => void
-  ): Promise<FileSystemEntry> {
+  ): Promise<TS.FileSystemEntry> {
     return new Promise((resolve, reject) => {
       let isNewFile = false;
       // eslint-disable-next-line no-param-reassign
@@ -660,10 +677,20 @@ export default class ObjectStoreIO {
         Key: dirPath
       })
       .promise()
-      .then(result => ({
-        ...result,
-        dirPath
-      }));
+      .then(result => {
+        const out = {
+          ...result,
+          dirPath
+        };
+        if (dirPath.endsWith(AppConfig.metaFolder + '/')) {
+          return out;
+        }
+        const metaFilePath = getMetaFileLocationForDir(dirPath, '/');
+        const metaContent = '{"id":"' + uuidv1() + '"}';
+        return this.saveTextFilePromise(metaFilePath, metaContent, false).then(
+          () => out
+        );
+      });
   };
 
   /**
@@ -684,7 +711,7 @@ export default class ObjectStoreIO {
     return this.objectStore
       .copyObject({
         Bucket: this.config.bucketName,
-        CopySource: this.config.bucketName + '/' + nFilePath,
+        CopySource: encodeURI(this.config.bucketName + '/' + nFilePath),
         Key: nNewFilePath
       })
       .promise();
@@ -692,6 +719,7 @@ export default class ObjectStoreIO {
 
   /**
    * Renames a given file (tested)
+   * TODO for web minio copyObject -> The request signature we calculated does not match the signature you provided. Check your key and signing method.
    */
   renameFilePromise = (
     filePath: string,
@@ -706,28 +734,31 @@ export default class ObjectStoreIO {
       });
     }
     // Copy the object to a new location
-    return this.objectStore
-      .copyObject({
-        Bucket: this.config.bucketName,
-        CopySource: this.config.bucketName + '/' + nFilePath, // this.encodeS3URI(nFilePath),
-        Key: nNewFilePath
-      })
-      .promise()
-      .then(() =>
-        // Delete the old object
-        this.objectStore
-          .deleteObject({
-            Bucket: this.config.bucketName,
-            Key: nFilePath
-          })
-          .promise()
-      )
-      .catch(e => {
-        console.log(e);
-        return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
+      this.objectStore
+        .copyObject({
+          Bucket: this.config.bucketName,
+          CopySource: encodeURI(this.config.bucketName + '/' + nFilePath), // this.encodeS3URI(nFilePath),
+          Key: nNewFilePath
+        })
+        .promise()
+        .then(() =>
+          // Delete the old object
+          this.objectStore
+            .deleteObject({
+              Bucket: this.config.bucketName,
+              Key: nFilePath
+            })
+            .promise()
+            .then(() => {
+              resolve([filePath, nNewFilePath]);
+            })
+        )
+        .catch(e => {
+          console.log(e);
           reject('Renaming file failed' + e.code);
         });
-      });
+    });
   };
 
   /**
@@ -805,32 +836,15 @@ export default class ObjectStoreIO {
    * Delete a specified directory
    */
   deleteDirectoryPromise = async (path: string): Promise<Object> => {
-    const listParams = {
-      Bucket: this.config.bucketName,
-      Prefix: path,
-      Delimiter: '/'
-    };
-    const listedObjects = await this.objectStore
-      .listObjectsV2(listParams)
-      .promise();
+    const prefixes = await this.getDirectoryPrefixes(path);
 
-    if (listedObjects.Contents.length > 0) {
+    if (prefixes.length > 0) {
       const deleteParams = {
         Bucket: this.config.bucketName,
-        Delete: { Objects: [] }
+        Delete: { Objects: prefixes }
       };
 
-      listedObjects.Contents.forEach(({ Key }) => {
-        deleteParams.Delete.Objects.push({ Key });
-      });
-
       return this.objectStore.deleteObjects(deleteParams).promise();
-
-      /*if (!listedObjects.IsTruncated) {
-        return Promise.reject(
-          'Folder is not empty:' + JSON.stringify(listedObjects)
-        );
-      }*/
     }
     return this.objectStore
       .deleteObject({
@@ -838,6 +852,45 @@ export default class ObjectStoreIO {
         Key: path
       })
       .promise();
+  };
+
+  /**
+   * get recursively all aws directory prefixes
+   * @param path
+   */
+  getDirectoryPrefixes = async (path: string): Promise<any[]> => {
+    const prefixes = [];
+    const promises = [];
+    const listParams = {
+      Bucket: this.config.bucketName,
+      Prefix: this.normalizeRootPath(path),
+      Delimiter: '/'
+    };
+    const listedObjects = await this.objectStore
+      .listObjectsV2(listParams)
+      .promise();
+
+    if (
+      listedObjects.Contents.length > 0 ||
+      listedObjects.CommonPrefixes.length > 0
+    ) {
+      listedObjects.Contents.forEach(({ Key }) => {
+        prefixes.push({ Key });
+      });
+
+      listedObjects.CommonPrefixes.forEach(({ Prefix }) => {
+        prefixes.push({ Key: Prefix });
+        promises.push(this.getDirectoryPrefixes(Prefix));
+      });
+      // if (listedObjects.IsTruncated) await this.deleteDirectoryPromise(path);
+    }
+    const subPrefixes = await Promise.all(promises);
+    subPrefixes.map(arrPrefixes => {
+      arrPrefixes.map(prefix => {
+        prefixes.push(prefix);
+      });
+    });
+    return prefixes;
   };
 
   /**

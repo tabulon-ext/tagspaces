@@ -79,47 +79,6 @@ export const regions = [
   'sa-east-1'
 ];
 
-const styles: any = (theme: any) => ({
-  root: {
-    flexGrow: 1,
-    height: 250
-  },
-  input: {
-    display: 'flex',
-    padding: 0,
-    height: 36,
-    marginTop: 10
-  },
-  valueContainer: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    flex: 1,
-    alignItems: 'center',
-    overflow: 'hidden'
-  },
-  noOptionsMessage: {
-    padding: theme.spacing(1, 2)
-  },
-  singleValue: {
-    fontSize: 16
-  },
-  placeholder: {
-    position: 'absolute',
-    left: 2,
-    fontSize: 16
-  },
-  paper: {
-    // position: 'absolute',
-    zIndex: 1,
-    marginTop: theme.spacing(1),
-    left: 0,
-    right: 0
-  },
-  divider: {
-    height: theme.spacing(2)
-  }
-});
-
 interface Props {
   classes: any;
   theme: any;
@@ -136,6 +95,7 @@ interface Props {
   storePath: string;
   accessKeyId: string;
   secretAccessKey: string;
+  sessionToken: string;
   bucketName: string;
   region: string;
   endpointURL: string;
@@ -144,6 +104,7 @@ interface Props {
   setStorePath: (string) => void;
   setAccessKeyId: (string) => void;
   setSecretAccessKey: (string) => void;
+  setSessionToken: (string) => void;
   setShowSecretAccessKey: (boolean) => void;
   setBucketName: (string) => void;
   setRegion: (string) => void;
@@ -166,6 +127,7 @@ const ObjectStoreForm = (props: Props) => {
     storePath,
     accessKeyId,
     secretAccessKey,
+    sessionToken,
     bucketName,
     region,
     endpointURL,
@@ -174,6 +136,7 @@ const ObjectStoreForm = (props: Props) => {
     setStorePath,
     setAccessKeyId,
     setSecretAccessKey,
+    setSessionToken,
     setBucketName,
     setEndpointURL,
     setNewUuid,
@@ -284,6 +247,24 @@ const ObjectStoreForm = (props: Props) => {
           )} */}
         </FormControl>
       </Grid>
+      {showAdvancedMode && (
+        <Grid item xs={12}>
+          <FormControl fullWidth={true}>
+            <InputLabel htmlFor="sessionToken">
+              {i18n.t('core:sessionToken')}
+            </InputLabel>
+            <Input
+              margin="dense"
+              name="sessionToken"
+              fullWidth={true}
+              data-tid="sessionTokenTID"
+              inputProps={{ autoCorrect: 'off', autoCapitalize: 'none' }}
+              onChange={event => setSessionToken(event.target.value)}
+              value={sessionToken}
+            />
+          </FormControl>
+        </Grid>
+      )}
       <Grid item xs={12}>
         <FormControl fullWidth={true} error={cloudErrorBucketName}>
           <InputLabel htmlFor="bucketName">
@@ -370,4 +351,4 @@ const ObjectStoreForm = (props: Props) => {
   );
 };
 
-export default withStyles(styles, { withTheme: true })(ObjectStoreForm);
+export default withStyles(undefined, { withTheme: true })(ObjectStoreForm);

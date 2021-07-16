@@ -36,6 +36,8 @@ import AppConfig from '-/config';
 import i18n from '-/services/i18n';
 import { Pro } from '../../pro';
 import { actions as AppActions } from '-/reducers/app';
+import Links from '-/links';
+import { ProLabel } from '-/components/HelperComponents';
 
 interface Props {
   classes: any;
@@ -52,6 +54,123 @@ const LocationManagerMenu = (props: Props) => {
     locationManagerMenuAnchorEl,
     setLocationManagerMenuAnchorEl
   ] = useState<null | HTMLElement>(null);
+
+  const menuItems = [];
+  if (!AppConfig.locationsReadOnly) {
+    menuItems.push(
+      <MenuItem
+        key="locationManagerMenuCreateLocation"
+        data-tid="locationManagerMenuCreateLocation"
+        onClick={() => {
+          setLocationManagerMenuAnchorEl(null);
+          props.showCreateLocationDialog();
+        }}
+      >
+        <ListItemIcon>
+          <CreateLocationIcon />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:createLocationTitle')} />
+      </MenuItem>
+    );
+  }
+
+  menuItems.push(
+    <MenuItem
+      key="locationManagerMenuOpenLink"
+      data-tid="locationManagerMenuOpenLink"
+      onClick={() => {
+        setLocationManagerMenuAnchorEl(null);
+        props.toggleOpenLinkDialog();
+      }}
+    >
+      <ListItemIcon>
+        <OpenLinkIcon />
+      </ListItemIcon>
+      <ListItemText primary={i18n.t('core:openLink')} />
+    </MenuItem>
+  );
+
+  if (!AppConfig.isCordovaAndroid) {
+    // https://trello.com/c/z6ESlqxz/697-exports-to-json-or-csv-do-not-work-on-android
+    menuItems.push(
+      <MenuItem
+        disabled={!Pro}
+        key="locationManagerMenuExportLocationsTID"
+        data-tid="locationManagerMenuExportLocationsTID"
+        onClick={() => {
+          setLocationManagerMenuAnchorEl(null);
+          props.exportLocations();
+        }}
+      >
+        <ListItemIcon>
+          <ExportImportIcon />
+        </ListItemIcon>
+        <ListItemText
+          primary={
+            <>
+              {i18n.t('core:exportLocationTitle')}
+              <ProLabel />
+            </>
+          }
+        />
+      </MenuItem>
+    );
+  }
+  menuItems.push(
+    <MenuItem
+      disabled={!Pro}
+      key="locationManagerMenuImportLocations"
+      data-tid="locationManagerMenuImportLocationsTID"
+      onClick={() => {
+        setLocationManagerMenuAnchorEl(null);
+        props.importLocations();
+      }}
+    >
+      <ListItemIcon>
+        <ExportImportIcon />
+      </ListItemIcon>
+      <ListItemText
+        primary={
+          <>
+            {i18n.t('core:importLocationTitle')}
+            <ProLabel />
+          </>
+        }
+      />
+    </MenuItem>
+  );
+
+  menuItems.push(
+    <MenuItem
+      key="locationManagerMenuCloseAll"
+      data-tid="locationManagerMenuCloseAll"
+      onClick={() => {
+        setLocationManagerMenuAnchorEl(null);
+        props.closeAllLocations();
+      }}
+    >
+      <ListItemIcon>
+        <CloseIcon />
+      </ListItemIcon>
+      <ListItemText primary={i18n.t('core:closeAllLocations')} />
+    </MenuItem>
+  );
+
+  menuItems.push(
+    <MenuItem
+      key="locationManagerMenuHelp"
+      data-tid="locationManagerMenuHelp"
+      onClick={() => {
+        setLocationManagerMenuAnchorEl(null);
+        props.openURLExternally(Links.documentationLinks.locations, true);
+      }}
+    >
+      <ListItemIcon>
+        <HelpIcon />
+      </ListItemIcon>
+      <ListItemText primary={i18n.t('core:help')} />
+    </MenuItem>
+  );
 
   return (
     <>
@@ -76,87 +195,7 @@ const LocationManagerMenu = (props: Props) => {
           setLocationManagerMenuAnchorEl(null);
         }}
       >
-        {!AppConfig.locationsReadOnly && (
-          <MenuItem
-            data-tid="locationManagerMenuCreateLocation"
-            onClick={() => {
-              setLocationManagerMenuAnchorEl(null);
-              props.showCreateLocationDialog();
-            }}
-          >
-            <ListItemIcon>
-              <CreateLocationIcon />
-            </ListItemIcon>
-            <ListItemText primary={i18n.t('core:createLocationTitle')} />
-          </MenuItem>
-        )}
-        <MenuItem
-          data-tid="locationManagerMenuOpenLink"
-          onClick={() => {
-            setLocationManagerMenuAnchorEl(null);
-            props.toggleOpenLinkDialog();
-          }}
-        >
-          <ListItemIcon>
-            <OpenLinkIcon />
-          </ListItemIcon>
-          <ListItemText primary={i18n.t('core:openLink')} />
-        </MenuItem>
-        {Pro && (
-          <>
-            <MenuItem
-              data-tid="locationManagerMenuExportLocationsTID"
-              onClick={() => {
-                setLocationManagerMenuAnchorEl(null);
-                props.exportLocations();
-              }}
-            >
-              <ListItemIcon>
-                <ExportImportIcon />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:exportLocationTitle')} />
-            </MenuItem>
-            <MenuItem
-              data-tid="locationManagerMenuImportLocationsTID"
-              onClick={() => {
-                setLocationManagerMenuAnchorEl(null);
-                props.importLocations();
-              }}
-            >
-              <ListItemIcon>
-                <ExportImportIcon />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:importLocationTitle')} />
-            </MenuItem>
-          </>
-        )}
-        <MenuItem
-          data-tid="locationManagerMenuCloseAll"
-          onClick={() => {
-            setLocationManagerMenuAnchorEl(null);
-            props.closeAllLocations();
-          }}
-        >
-          <ListItemIcon>
-            <CloseIcon />
-          </ListItemIcon>
-          <ListItemText primary={i18n.t('core:closeAllLocations')} />
-        </MenuItem>
-        <MenuItem
-          data-tid="locationManagerMenuHelp"
-          onClick={() => {
-            setLocationManagerMenuAnchorEl(null);
-            props.openURLExternally(
-              AppConfig.documentationLinks.locations,
-              true
-            );
-          }}
-        >
-          <ListItemIcon>
-            <HelpIcon />
-          </ListItemIcon>
-          <ListItemText primary={i18n.t('core:help')} />
-        </MenuItem>
+        {menuItems}
       </Menu>
     </>
   );

@@ -21,30 +21,32 @@ import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/DeleteForever';
-import ShowEntriesWithTagIcon from '@material-ui/icons/Launch';
+import AddIcon from '@material-ui/icons/Add';
+import ShowEntriesWithTagIcon from '@material-ui/icons/SearchOutlined';
 import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemText from '@material-ui/core/ListItemText';
 import Menu from '@material-ui/core/Menu';
 import MenuItem from '@material-ui/core/MenuItem';
 import ConfirmDialog from '../dialogs/ConfirmDialog';
 import i18n from '-/services/i18n';
-import { Tag } from '-/reducers/taglibrary';
 import { actions as LocationIndexActions } from '-/reducers/location-index';
-import { SearchQuery } from '-/services/search';
 import { getMaxSearchResults } from '-/reducers/settings';
 import { actions as AppActions } from '-/reducers/app';
+import { TS } from '-/tagspaces.namespace';
+import OpenFolderIcon from '@material-ui/icons/SubdirectoryArrowLeft';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   anchorEl: Element | null;
-  selectedTag: Tag | null;
+  selectedTag: TS.Tag | null;
   currentEntryPath: string;
-  removeTags: (paths: Array<string>, tags: Array<Tag>) => void;
-  searchLocationIndex?: (searchQuery: SearchQuery) => void;
+  removeTags: (paths: Array<string>, tags: Array<TS.Tag>) => void;
+  searchLocationIndex?: (searchQuery: TS.SearchQuery) => void;
   maxSearchResults?: number;
   openSearchPanel?: () => void;
-  toggleEditTagDialog?: (tag: Tag) => void;
+  setIsAddTagDialogOpened?: (tag: TS.Tag) => void;
+  toggleEditTagDialog?: (tag: TS.Tag) => void;
   isReadOnlyMode?: boolean;
 }
 
@@ -62,6 +64,11 @@ const EntryTagMenu = (props: Props) => {
   function showDeleteTagDialog() {
     props.onClose();
     setIsDeleteTagDialogOpened(true);
+  }
+
+  function showAddTagDialog() {
+    props.onClose();
+    props.setIsAddTagDialogOpened(props.selectedTag);
   }
 
   function showFilesWithThisTag() {
@@ -84,34 +91,63 @@ const EntryTagMenu = (props: Props) => {
     handleCloseDialogs();
   }
 
+  const menuItems = [
+    <MenuItem
+      key="showFilesWithThisTag"
+      data-tid="showFilesWithThisTag"
+      onClick={showFilesWithThisTag}
+    >
+      <ListItemIcon>
+        <ShowEntriesWithTagIcon />
+      </ListItemIcon>
+      <ListItemText primary={i18n.t('core:showFilesWithThisTag')} />
+    </MenuItem>
+  ];
+  if (!props.isReadOnlyMode) {
+    if (props.setIsAddTagDialogOpened) {
+      menuItems.push(
+        <MenuItem
+          key="addTagMenu"
+          data-tid="addTagMenuTID"
+          onClick={showAddTagDialog}
+        >
+          <ListItemIcon>
+            <AddIcon />
+          </ListItemIcon>
+          <ListItemText primary={i18n.t('core:addTagToTagGroup')} />
+        </MenuItem>
+      );
+    }
+    menuItems.push(
+      <MenuItem
+        key="editTagDialogMenu"
+        data-tid="editTagDialogMenu"
+        onClick={showEditTagDialog}
+      >
+        <ListItemIcon>
+          <EditIcon />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:editTagTitle')} />
+      </MenuItem>
+    );
+    menuItems.push(
+      <MenuItem
+        key="deleteTagMenu"
+        data-tid="deleteTagMenu"
+        onClick={showDeleteTagDialog}
+      >
+        <ListItemIcon>
+          <DeleteIcon />
+        </ListItemIcon>
+        <ListItemText primary={i18n.t('core:removeTag')} />
+      </MenuItem>
+    );
+  }
+
   return (
     <div style={{ overflowY: 'hidden' }}>
       <Menu anchorEl={props.anchorEl} open={props.open} onClose={props.onClose}>
-        <MenuItem
-          data-tid="showFilesWithThisTag"
-          onClick={showFilesWithThisTag}
-        >
-          <ListItemIcon>
-            <ShowEntriesWithTagIcon />
-          </ListItemIcon>
-          <ListItemText primary={i18n.t('core:showFilesWithThisTag')} />
-        </MenuItem>
-        <MenuItem data-tid="editTagDialogMenu" onClick={showEditTagDialog}>
-          <ListItemIcon>
-            <EditIcon />
-          </ListItemIcon>
-          <ListItemText primary={i18n.t('core:editTagTitle')} />
-        </MenuItem>
-        {!props.isReadOnlyMode && (
-          <div>
-            <MenuItem data-tid="deleteTagMenu" onClick={showDeleteTagDialog}>
-              <ListItemIcon>
-                <DeleteIcon />
-              </ListItemIcon>
-              <ListItemText primary={i18n.t('core:removeTag')} />
-            </MenuItem>
-          </div>
-        )}
+        {menuItems}
       </Menu>
       <ConfirmDialog
         open={isDeleteTagDialogOpened}

@@ -44,11 +44,8 @@ buildscript {
         ext.kotlin_version = gradlePluginKotlinVersion
     }
 
-    repositories {
-        mavenCentral()
-        google()
-        jcenter()
-    }
+    apply from: 'repositories.gradle'
+    repositories repos
 
     dependencies {
         apply from: '../CordovaLib/cordova.gradle'
@@ -82,10 +79,8 @@ buildscript {
 
 // Allow plugins to declare Maven dependencies via build-extras.gradle.
 allprojects {
-    repositories {
-        mavenCentral()
-        jcenter()
-    }
+    apply from: 'repositories.gradle'
+    repositories repos
 }
 
 task wrapper(type: Wrapper) {
@@ -147,7 +142,7 @@ ext {
 }
 
 // PLUGIN GRADLE EXTENSIONS START
-apply from: "../com.ourcodeworld.plugins.Filebrowser/mobile-plugin.gradle"
+apply from: "../com.ourcodeworld.plugins.Filebrowser/mobileapp-plugin.gradle"
 // PLUGIN GRADLE EXTENSIONS END
 
 def hasBuildExtras1 = file('build-extras.gradle').exists()
@@ -352,8 +347,8 @@ dependencies {
 
     // SUB-PROJECT DEPENDENCIES START
     implementation(project(path: ":CordovaLib"))
-    implementation "androidx.legacy:legacy-support-v4:1.0.0"
     implementation "androidx.core:core:1.1.0"
+    implementation "androidx.legacy:legacy-support-v4:1.0.0"
     // SUB-PROJECT DEPENDENCIES END
 }
 

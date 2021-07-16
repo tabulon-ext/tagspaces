@@ -15,38 +15,31 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-
 import fsextra from 'fs-extra';
 import pathLib from 'path';
 import winattr from 'winattr';
+import micromatch from 'micromatch';
 import {
   extractFileExtension,
   extractFileName,
   extractParentDirectoryPath,
-  getMetaDirectoryPath
+  getMetaDirectoryPath,
+  getThumbFileLocationForDirectory
 } from '-/utils/paths';
 import { arrayBufferToBuffer } from '-/utils/misc';
 import AppConfig from '../config';
 import PlatformIO from './platform-io';
-import TrayIcon from '../assets/icons/trayIcon.png';
+// import TrayIcon from '../assets/icons/trayIcon.png';
 // import TrayIconWin from '../assets/icons/trayIcon.ico';
-import TrayIcon2x from '../assets/icons/trayIcon@2x.png';
-import TrayIcon3x from '../assets/icons/trayIcon@3x.png';
+// import TrayIcon2x from '../assets/icons/trayIcon@2x.png';
+// import TrayIcon3x from '../assets/icons/trayIcon@3x.png';
 import { Pro } from '../pro';
-import { FileSystemEntry } from '-/services/utils-io';
+import { TS } from '-/tagspaces.namespace';
 
 export default class ElectronIO {
   electron: any;
 
-  win: any;
-
-  app: any;
-
   ipcRenderer: any;
-
-  remote: any;
-
-  workerWindow: any;
 
   pathUtils: any;
 
@@ -63,22 +56,12 @@ export default class ElectronIO {
       this.electron = window.require('electron');
       this.ipcRenderer = this.electron.ipcRenderer;
       this.webFrame = this.electron.webFrame;
-      this.remote = this.electron.remote;
-      this.workerWindow = this.remote.getGlobal('splashWorkerWindow');
-      this.win = this.remote.getCurrentWindow();
-      this.app = this.remote.app;
-      this.fs = fsextra; // window.require('fs-extra');
+      this.fs = fsextra;
       this.pathUtils = window.require('path');
     }
   }
 
-  initMainMenu = (menuConfig: Array<Object>) => {
-    const { Menu } = this.remote;
-    const defaultMenu = Menu.buildFromTemplate(menuConfig);
-    Menu.setApplicationMenu(defaultMenu);
-  };
-
-  initTrayMenu = (menuConfig: Array<Object>) => {
+  /* initTrayMenu = (menuConfig: Array<Object>) => {
     const mainWindow = this.win;
     const { Menu } = this.remote;
     const { Tray } = this.remote;
@@ -98,8 +81,14 @@ export default class ElectronIO {
       nImage = nativeImage.createFromDataURL(TrayIcon2x);
     } else if (process.platform === 'darwin') {
       nImage = nativeImage.createFromDataURL(TrayIcon);
-      nImage.addRepresentation({ scaleFactor: 2.0, dataURL: TrayIcon2x });
-      nImage.addRepresentation({ scaleFactor: 3.0, dataURL: TrayIcon3x });
+      nImage.addRepresentation({
+        scaleFactor: 2.0,
+        dataURL: TrayIcon2x
+      });
+      nImage.addRepresentation({
+        scaleFactor: 3.0,
+        dataURL: TrayIcon3x
+      });
     } else {
       nImage = nativeImage.createFromDataURL(TrayIcon2x);
     }
@@ -117,10 +106,10 @@ export default class ElectronIO {
     const trayMenu = Menu.buildFromTemplate(menuConfig);
     this.tsTray.setToolTip('TagSpaces');
     this.tsTray.setContextMenu(trayMenu);
-  };
+  }; */
 
-  isWorkerAvailable = (): boolean => {
-    let workerAvailable = false;
+  isWorkerAvailable = (): boolean =>
+    /* let workerAvailable = false;
     try {
       if (this.workerWindow && this.workerWindow.webContents) {
         workerAvailable = true;
@@ -128,14 +117,16 @@ export default class ElectronIO {
     } catch (err) {
       console.info('Error by finding if worker is available.');
     }
-    return workerAvailable;
-  };
+    return workerAvailable; */
+
+    this.ipcRenderer.sendSync('is-worker-available', 'notNeededArgument');
 
   showMainWindow = (): void => {
-    if (this.win.isMinimized()) {
+    this.ipcRenderer.send('show-main-window', 'notNeededArgument');
+    /* if (this.win.isMinimized()) {
       this.win.restore();
     }
-    this.win.show();
+    this.win.show(); */
   };
 
   quitApp = (): void => {
@@ -155,22 +146,15 @@ export default class ElectronIO {
 
   // Sets the current window on top of the windows
   focusWindow = (): void => {
-    this.win.focus();
+    this.ipcRenderer.send('focus-window', 'notNeededArgument');
+    // this.win.focus();
   };
 
-  getDevicePaths = (): Object => {
-    const paths = {
-      desktopFolder: this.app.getPath('desktop'),
-      documentsFolder: this.app.getPath('documents'),
-      downloadsFolder: this.app.getPath('downloads'),
-      musicFolder: this.app.getPath('music'),
-      picturesFolder: this.app.getPath('pictures'),
-      videosFolder: this.app.getPath('videos')
-    };
-    return paths;
-  };
+  getDevicePaths = (): Object =>
+    this.ipcRenderer.sendSync('get-device-paths', 'notNeededArgument');
 
-  getUserHomePath = (): string => this.app.getPath('home');
+  getUserHomePath = (): string =>
+    this.ipcRenderer.sendSync('get-user-home-path', 'notNeededArgument');
 
   getAppDataPath = (): string =>
     this.ipcRenderer.sendSync('app-data-path-request', 'notNeededArgument');
@@ -223,16 +207,18 @@ export default class ElectronIO {
 
   createDirectoryIndexInWorker = (
     directoryPath: string,
-    extractText: boolean
+    extractText: boolean,
+    ignorePatterns: Array<string>
   ): Promise<any> =>
     new Promise((resolve, reject) => {
       if (this.isWorkerAvailable()) {
         const timestamp = new Date().getTime().toString();
-        this.workerWindow.webContents.send('worker', {
+        this.ipcRenderer.send('worker', {
           id: timestamp,
           action: 'createDirectoryIndex',
           path: directoryPath,
-          extractText
+          extractText,
+          ignorePatterns
         });
         this.ipcRenderer.once(timestamp, (event, data) => {
           // console.log('Answer from worker recieved ' + data.result);
@@ -248,7 +234,7 @@ export default class ElectronIO {
       const tmbGenChannel = 'TMB_GEN_CHANNEL';
       this.ipcRenderer.removeAllListeners(tmbGenChannel);
       if (this.isWorkerAvailable()) {
-        this.workerWindow.webContents.send('worker', {
+        this.ipcRenderer.send('worker', {
           id: tmbGenChannel,
           action: 'createThumbnails',
           tmbGenerationList
@@ -266,7 +252,9 @@ export default class ElectronIO {
   listDirectoryPromise = (
     path: string,
     lite: boolean = true,
-    extractTextContent: boolean = false
+    extractTextContent: boolean = false,
+    ignorePatterns: Array<string> = [],
+    showIgnored: boolean = true
   ): Promise<Array<Object>> =>
     new Promise(resolve => {
       const enhancedEntries = [];
@@ -293,6 +281,16 @@ export default class ElectronIO {
         }
 
         if (entries) {
+          if (!showIgnored && ignorePatterns.length > 0) {
+            // eslint-disable-next-line no-param-reassign
+            entries = entries.filter(
+              entry =>
+                !micromatch.isMatch(
+                  path + AppConfig.dirSeparator + entry,
+                  ignorePatterns
+                )
+            );
+          }
           entries.forEach(entry => {
             entryPath = path + AppConfig.dirSeparator + entry;
             eentry = {};
@@ -301,6 +299,12 @@ export default class ElectronIO {
             eentry.tags = [];
             eentry.thumbPath = '';
             eentry.meta = {};
+            if (
+              ignorePatterns.length > 0 &&
+              micromatch.isMatch(entryPath, ignorePatterns) // { basename: true })
+            ) {
+              eentry.isIgnored = true;
+            }
 
             try {
               stats = this.fs.statSync(entryPath);
@@ -323,12 +327,12 @@ export default class ElectronIO {
                 const folderMetaPath =
                   eentry.path +
                   AppConfig.dirSeparator +
-                  AppConfig.metaFolder +
-                  AppConfig.dirSeparator +
+                  (!eentry.path.includes('/' + AppConfig.metaFolder)
+                    ? AppConfig.metaFolder + AppConfig.dirSeparator
+                    : '') +
                   AppConfig.metaFolderFile;
                 try {
-                  const folderMeta = this.fs.readJsonSync(folderMetaPath);
-                  eentry.meta = folderMeta;
+                  eentry.meta = this.fs.readJsonSync(folderMetaPath);
                   // console.log('Success reading meta folder file ' + folderMetaPath);
                 } catch (err) {
                   // console.log('Failed reading meta folder file ' + folderMetaPath);
@@ -337,12 +341,10 @@ export default class ElectronIO {
                 // Loading thumbs for folders
                 if (!eentry.path.includes('/' + AppConfig.metaFolder)) {
                   // skipping meta folder
-                  const folderTmbPath =
-                    eentry.path +
-                    AppConfig.dirSeparator +
-                    AppConfig.metaFolder +
-                    AppConfig.dirSeparator +
-                    AppConfig.folderThumbFile;
+                  const folderTmbPath = getThumbFileLocationForDirectory(
+                    eentry.path,
+                    AppConfig.dirSeparator
+                  );
                   const tmbStats = this.fs.statSync(folderTmbPath);
                   if (tmbStats.isFile()) {
                     eentry.thumbPath = folderTmbPath;
@@ -691,10 +693,10 @@ export default class ElectronIO {
     filePath: string,
     content: any,
     overwrite: boolean = true
-  ): Promise<FileSystemEntry> =>
+  ): Promise<TS.FileSystemEntry> =>
     new Promise((resolve, reject) => {
       const fileSystem = this.fs;
-      function saveFile(entry: FileSystemEntry, tContent) {
+      function saveFile(entry: TS.FileSystemEntry, tContent) {
         fileSystem.writeFile(entry.path, tContent, 'utf8', error => {
           if (error) {
             reject(error);
@@ -705,7 +707,7 @@ export default class ElectronIO {
       }
 
       this.getPropertiesPromise(filePath)
-        .then((entry: FileSystemEntry) => {
+        .then((entry: TS.FileSystemEntry) => {
           if (entry && entry.isFile && overwrite) {
             saveFile({ ...entry, isNewFile: false, tags: [] }, content);
           } else {
@@ -736,7 +738,7 @@ export default class ElectronIO {
     filePath: string,
     content: string,
     overwrite: boolean
-  ): Promise<FileSystemEntry> => {
+  ): Promise<TS.FileSystemEntry> => {
     console.log('Saving file: ' + filePath);
 
     // Handling the UTF8 support for text files
@@ -756,7 +758,7 @@ export default class ElectronIO {
     filePath: string,
     content: any,
     overwrite: boolean
-  ): Promise<FileSystemEntry> => {
+  ): Promise<TS.FileSystemEntry> => {
     console.log('Saving binary file: ' + filePath);
     const buff = arrayBufferToBuffer(content);
     return this.saveFilePromise(filePath, buff, overwrite);
@@ -810,7 +812,7 @@ export default class ElectronIO {
     new Promise((resolve, reject) => {
       let result = true;
       files.forEach(fullPath => {
-        result = this.electron.shell.moveItemToTrash(fullPath);
+        result = this.electron.shell.trashItem(fullPath);
       });
       if (result) {
         resolve(true);
@@ -852,14 +854,17 @@ export default class ElectronIO {
 
   resolveFilePath = (filePath: string): string => pathLib.resolve(filePath);
 
-  selectFileDialog = (): Promise<any> => {
+  /**
+   * not used
+   */
+  /* selectFileDialog = (): Promise<any> => {
     const options = {
-      /* filters: [
-        {
-          name: 'Images',
-          extensions: ['jpg', 'png', 'gif']
-        }
-      ] */
+      //  filters: [
+      //   {
+      //     name: 'Images',
+      //     extensions: ['jpg', 'png', 'gif']
+      //   }
+      // ]
     };
     return new Promise((resolve, reject) => {
       this.remote.dialog
@@ -877,13 +882,12 @@ export default class ElectronIO {
           reject('Error opening file ' + e);
         });
     });
-  };
+  }; */
 
-  selectDirectoryDialog = (): Promise<any> => {
-    const options = {
-      properties: ['openDirectory', 'createDirectory']
-    };
-    return new Promise((resolve, reject) => {
+  selectDirectoryDialog = (): Promise<any> =>
+    this.ipcRenderer.invoke('select-directory-dialog', 'noArg');
+
+  /* return new Promise((resolve, reject) => {
       this.remote.dialog
         .showOpenDialog(options)
         .then(resultObject => {
@@ -898,8 +902,7 @@ export default class ElectronIO {
         .catch(e => {
           reject('Error opening directory ' + e);
         });
-    });
-  };
+    }); */
 
   shareFiles = (files: Array<string>) => {
     console.log('shareFiles is not implemented in electron.');

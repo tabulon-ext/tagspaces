@@ -18,20 +18,13 @@
 
 import uuidv1 from 'uuid';
 import pathLib from 'path';
-import {
-  Location,
-  getLocation,
-  locationType,
-  getDefaultLocationId
-} from './locations';
+import { getLocation, getDefaultLocationId } from './locations';
 import PlatformIO from '../services/platform-io';
 import AppConfig from '../config';
 import {
   deleteFilesPromise,
   loadMetaDataPromise,
   renameFilesPromise,
-  FileSystemEntryMeta,
-  FileSystemEntry,
   getAllPropertiesPromise,
   prepareDirectoryContent,
   findExtensionsForEntry,
@@ -55,19 +48,19 @@ import {
   getURLParameter,
   clearURLParam,
   updateHistory,
-  clearAllURLParams
+  clearAllURLParams,
+  locationType
 } from '-/utils/misc';
 import i18n from '../services/i18n';
 import { Pro } from '../pro';
-// import { getThumbnailURLPromise } from '../services/thumbsgenerator';
 import { actions as LocationIndexActions } from './location-index';
-import { Tag } from './taglibrary';
 import {
   actions as SettingsActions,
   getCheckForUpdateOnStartup,
   isFirstRun,
   isGlobalKeyBindingEnabled
 } from '-/reducers/settings';
+import { TS } from '-/tagspaces.namespace';
 
 export const types = {
   DEVICE_ONLINE: 'APP/DEVICE_ONLINE',
@@ -111,7 +104,6 @@ export const types = {
   TOGGLE_CREATE_FILE_DIALOG: 'APP/TOGGLE_CREATE_FILE_DIALOG',
   TOGGLE_DELETE_MULTIPLE_ENTRIES_DIALOG:
     'APP/TOGGLE_DELETE_MULTIPLE_ENTRIES_DIALOG',
-  // TOGGLE_SELECT_DIRECTORY_DIALOG: 'APP/TOGGLE_SELECT_DIRECTORY_DIALOG',
   TOGGLE_UPLOAD_DIALOG: 'APP/TOGGLE_UPLOAD_DIALOG',
   CLEAR_UPLOAD_DIALOG: 'APP/CLEAR_UPLOAD_DIALOG',
   TOGGLE_PROGRESS_DIALOG: 'APP/TOGGLE_PROGRESS_DIALOG',
@@ -163,7 +155,7 @@ export type OpenedEntry = {
    */
   shouldReload?: boolean;
   focused?: boolean; // TODO make it mandatory once support for multiple files is added
-  tags?: Array<Tag>;
+  tags?: Array<TS.Tag>;
 };
 
 let showLocations = true;
@@ -219,7 +211,7 @@ export const initialState = {
   thirdPartyLibsDialogOpened: false,
   settingsDialogOpened: false,
   createDirectoryDialogOpened: false,
-  lastSelectedEntry: null,
+  // lastSelectedEntry: null,
   selectedEntries: [],
   isEntryInFullWidth: false,
   isGeneratingThumbs: false,
@@ -278,9 +270,10 @@ export default (state: any = initialState, action: any) => {
         currentDirectoryColor: action.directoryMeta
           ? action.directoryMeta.color || ''
           : '',
-        currentDirectoryPerspective: action.directoryMeta
-          ? action.directoryMeta.perspective
-          : undefined,
+        currentDirectoryPerspective:
+          action.directoryMeta && action.directoryMeta.perspective
+            ? action.directoryMeta.perspective
+            : state.currentDirectoryPerspective,
         currentDirectoryPath: directoryPath,
         isLoading: action.showIsLoading || false
       };
@@ -298,13 +291,9 @@ export default (state: any = initialState, action: any) => {
         currentLocationId: action.locationId
       };
     }
-    case types.SET_LAST_SELECTED_ENTRY: {
-      /* console.time('SET_LAST_SELECTED_ENTRY'); // Measure set last selected entry
-    const result = { ...state, lastSelectedEntry: action.entryPath };
-    console.timeEnd('SET_LAST_SELECTED_ENTRY');
-    return result; */
+    /* case types.SET_LAST_SELECTED_ENTRY: {
       return { ...state, lastSelectedEntry: action.entryPath };
-    }
+    } */
     case types.SET_SELECTED_ENTRIES: {
       return { ...state, selectedEntries: action.selectedEntries };
     }
@@ -531,6 +520,12 @@ export default (state: any = initialState, action: any) => {
       return state;
     }
     case types.REFLECT_RENAME_ENTRY: {
+      const extractedTags = extractTagsAsObjects(
+        action.newPath,
+        AppConfig.tagDelimiter,
+        PlatformIO.getDirSeparator()
+      );
+
       return {
         ...state,
         currentDirectoryEntries: state.currentDirectoryEntries.map(entry => {
@@ -548,11 +543,7 @@ export default (state: any = initialState, action: any) => {
             ),
             tags: [
               ...entry.tags.filter(tag => tag.type === 'sidecar'), // add only sidecar tags
-              ...extractTagsAsObjects(
-                action.newPath,
-                AppConfig.tagDelimiter,
-                PlatformIO.getDirSeparator()
-              )
+              ...extractedTags
             ]
           };
         }),
@@ -562,7 +553,11 @@ export default (state: any = initialState, action: any) => {
           }
           return {
             ...entry,
-            path: action.newPath // TODO handle change extension case
+            path: action.newPath, // TODO handle change extension case
+            tags: [
+              ...entry.tags.filter(tag => tag.type === 'sidecar'), // add only sidecar tags
+              ...extractedTags
+            ]
             // shouldReload: true
           };
         })
@@ -841,7 +836,7 @@ export const actions = {
       dispatch(actions.toggleCreateFileDialog());
     }
   },
-  toggleEditTagDialog: (tag: Tag) => ({
+  toggleEditTagDialog: (tag: TS.Tag) => ({
     type: types.TOGGLE_EDIT_TAG_DIALOG,
     tag
   }),
@@ -923,21 +918,29 @@ export const actions = {
       );
     }
   },
-  loadDirectoryContent: (directoryPath: string) => (
-    dispatch: (actions: Object) => void,
-    getState: () => any
-  ) => {
-    console.time('listDirectoryPromise');
+  loadDirectoryContentInt: (
+    directoryPath: string,
+    fsEntryMeta?: TS.FileSystemEntryMeta
+  ) => (dispatch: (actions: Object) => void, getState: () => any) => {
     const { settings } = getState();
-    window.walkCanceled = false;
-
-    function loadDirectoryContentInt(fsEntryMeta?: FileSystemEntryMeta) {
-      // Uncomment the following line will to clear all content before loading new dir content
+    /* const { currentDirectoryPath } = getState().app;
+    if (currentDirectoryPath !== directoryPath) {
       dispatch(actions.loadDirectorySuccessInt(directoryPath, [], true)); // this is to reset directoryContent (it will reset color too)
-      // dispatch(actions.setCurrentDirectoryColor('')); // this is to reset color only
-      dispatch(actions.showNotification(i18n.t('core:loading'), 'info', false));
-      PlatformIO.listDirectoryPromise(directoryPath, false)
-        .then(results => {
+    } */
+    // dispatch(actions.setCurrentDirectoryColor('')); // this is to reset color only
+    dispatch(actions.showNotification(i18n.t('core:loading'), 'info', false));
+    const currentLocation: TS.Location = getLocation(
+      getState(),
+      getState().app.currentLocationId
+    );
+    PlatformIO.listDirectoryPromise(
+      directoryPath,
+      false,
+      true,
+      currentLocation ? currentLocation.ignorePatternPaths : []
+    )
+      .then(results => {
+        if (results !== undefined) {
           prepareDirectoryContent(
             results,
             directoryPath,
@@ -946,19 +949,31 @@ export const actions = {
             getState,
             fsEntryMeta
           );
-          return true;
-        })
-        .catch(error => {
-          console.timeEnd('listDirectoryPromise');
-          dispatch(actions.loadDirectoryFailure(error)); // Currently this is never called, due the promise always resolve
-        });
-    }
+        }
+        return true;
+      })
+      .catch(error => {
+        console.timeEnd('listDirectoryPromise');
+        dispatch(actions.loadDirectoryFailure(error)); // Currently this is never called, due the promise always resolve
+      });
+  },
+  loadDirectoryContent: (directoryPath: string) => (
+    dispatch: (actions: Object) => void,
+    getState: () => any
+  ) => {
+    console.time('listDirectoryPromise');
+    window.walkCanceled = false;
 
+    const state = getState();
+    const { selectedEntries } = state.app;
+    if (selectedEntries.length > 0) {
+      dispatch(actions.setSelectedEntries([]));
+    }
     loadMetaDataPromise(
       normalizePath(directoryPath) + PlatformIO.getDirSeparator()
     )
       .then(fsEntryMeta => {
-        loadDirectoryContentInt(fsEntryMeta);
+        dispatch(actions.loadDirectoryContentInt(directoryPath, fsEntryMeta));
         /* if (fsEntryMeta.color) { // TODO rethink this states changes are expensive
           dispatch(actions.setCurrentDirectoryColor(fsEntryMeta.color));
         }
@@ -970,13 +985,13 @@ export const actions = {
       })
       .catch(err => {
         console.log('Error loading meta of the current folder' + err);
-        loadDirectoryContentInt();
+        dispatch(actions.loadDirectoryContentInt(directoryPath));
       });
   },
   loadDirectorySuccess: (
     directoryPath: string,
     directoryContent: Array<Object>,
-    directoryMeta?: FileSystemEntryMeta
+    directoryMeta?: TS.FileSystemEntryMeta
   ) => (dispatch: (actions: Object) => void) => {
     // const currentLocation: Location = getLocation(
     //  getState(),
@@ -1013,7 +1028,7 @@ export const actions = {
     directoryPath: string,
     directoryContent: Array<Object>,
     showIsLoading?: boolean,
-    directoryMeta?: FileSystemEntryMeta
+    directoryMeta?: TS.FileSystemEntryMeta
   ) => ({
     type: types.LOAD_DIRECTORY_SUCCESS,
     directoryPath: directoryPath || PlatformIO.getDirSeparator(),
@@ -1044,14 +1059,37 @@ export const actions = {
     type: types.UPDATE_THUMB_URLS,
     tmbURLs
   }),
-  setGeneratingThumbnails: (isGeneratingThumbs: boolean) => ({
-    type: types.SET_GENERATING_THUMBNAILS,
-    isGeneratingThumbs
-  }),
-  setLastSelectedEntry: (entryPath: string | null) => ({
+  // setGeneratingThumbnails: (isGeneratingThumbs: boolean) => ({
+  //   type: types.SET_GENERATING_THUMBNAILS,
+  //   isGeneratingThumbs
+  // }),
+  setGeneratingThumbnails: (isGeneratingThumbs: boolean) => (
+    dispatch: (actions: Object) => void
+  ) => {
+    dispatch(actions.hideNotifications());
+    if (isGeneratingThumbs) {
+      dispatch(
+        actions.showNotification(
+          i18n.t('core:loadingOrGeneratingThumbnails'),
+          'info',
+          true
+        )
+      );
+    } else {
+      console.log('Thumbnail generation ready');
+      // dispatch(
+      //   actions.showNotification(
+      //     i18n.t('Thumbnail ready'),
+      //     'info',
+      //     true
+      //   )
+      // );
+    }
+  },
+  /* setLastSelectedEntry: (entryPath: string | null) => ({
     type: types.SET_LAST_SELECTED_ENTRY,
     entryPath
-  }),
+  }), */
   setCurrentDirectoryColor: (color: string) => ({
     type: types.SET_CURRENDIRECTORYCOLOR,
     color
@@ -1243,8 +1281,9 @@ export const actions = {
             )
           );
           getAllPropertiesPromise(filePath)
-            .then((fsEntry: FileSystemEntry) => {
+            .then((fsEntry: TS.FileSystemEntry) => {
               dispatch(actions.openFsEntry(fsEntry)); // TODO return fsEntry from saveFilePromise and simplify
+              // dispatch(actions.setSelectedEntries([fsEntry])); -> moved in reflectCreateEntry
               return true;
             })
             .catch(error =>
@@ -1255,7 +1294,6 @@ export const actions = {
                   error
               )
             );
-          // TODO select file // dispatch(actions.setLastSelectedEntry(filePath));
           return true;
         })
         .catch(err => {
@@ -1298,11 +1336,11 @@ export const actions = {
         newHTMLFileContent.split('<body></body>')[1];
     }
     PlatformIO.saveFilePromise(filePath, fileContent, true)
-      .then((fsEntry: FileSystemEntry) => {
+      .then((fsEntry: TS.FileSystemEntry) => {
         dispatch(actions.reflectCreateEntry(filePath, true));
         dispatch(actions.openFsEntry(fsEntry)); // TODO return fsEntry from saveFilePromise and simplify
 
-        dispatch(actions.setLastSelectedEntry(filePath));
+        dispatch(actions.setSelectedEntries([fsEntry]));
         dispatch(
           actions.showNotification(
             `File '${fileNameAndExt}' created.`,
@@ -1335,7 +1373,7 @@ export const actions = {
     type: types.SET_CURRENLOCATIONID,
     locationId
   }),
-  changeLocation: (location: Location) => (
+  changeLocation: (location: TS.Location) => (
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
@@ -1357,8 +1395,9 @@ export const actions = {
       return true;
     });
   },
-  openLocation: (location: Location) => (
-    dispatch: (actions: Object) => void
+  openLocation: (location: TS.Location) => (
+    dispatch: (actions: Object) => void,
+    getState: () => any
   ) => {
     if (Pro && Pro.Watcher) {
       Pro.Watcher.stopWatching();
@@ -1394,7 +1433,14 @@ export const actions = {
       dispatch(actions.changeLocation(location));
       dispatch(actions.loadDirectoryContent(getLocationPath(location)));
       if (Pro && Pro.Watcher && location.watchForChanges) {
-        Pro.Watcher.watchFolder(getLocationPath(location), dispatch, actions);
+        const perspective = getCurrentDirectoryPerspective(getState());
+        const depth = perspective === perspectives.KANBAN ? 3 : 1;
+        Pro.Watcher.watchFolder(
+          getLocationPath(location),
+          dispatch,
+          actions,
+          depth
+        );
       }
     }
   },
@@ -1466,6 +1512,21 @@ export const actions = {
     type: types.SET_READONLYMODE,
     isReadOnlyMode
   }),
+  reflectUpdateOpenedFileContent: (entryPath: string) => (
+    dispatch: (actions: Object) => void,
+    getState: () => any
+  ) => {
+    const { openedFiles } = getState().app;
+    if (openedFiles && openedFiles.length > 0) {
+      const openedFile: OpenedEntry = openedFiles.find(
+        obj => obj.path === entryPath
+      );
+      if (openedFile) {
+        openedFile.shouldReload = true;
+        dispatch(actions.addToEntryContainer(openedFile));
+      }
+    }
+  },
   updateOpenedFile: (
     entryPath: string,
     fsEntryMeta: any // FileSystemEntryMeta,
@@ -1478,16 +1539,17 @@ export const actions = {
           if (entryProps) {
             const { supportedFileTypes } = getState().settings;
 
-            let entryForOpening: OpenedEntry = openedFiles.find(
-              obj => obj.path === entryPath
-            );
+            let entryForOpening: OpenedEntry;
+            const entryExist = openedFiles.find(obj => obj.path === entryPath);
 
-            if (!entryForOpening) {
+            if (!entryExist) {
               entryForOpening = findExtensionsForEntry(
                 supportedFileTypes,
                 entryPath,
                 entryProps.isFile
               );
+            } else {
+              entryForOpening = { ...entryExist };
             }
 
             if (fsEntryMeta.changed !== undefined) {
@@ -1500,7 +1562,11 @@ export const actions = {
             }
             entryForOpening.shouldReload = fsEntryMeta.shouldReload;
             if (fsEntryMeta.color) {
-              entryForOpening.color = fsEntryMeta.color;
+              if (fsEntryMeta.color === 'transparent') {
+                entryForOpening.color = undefined;
+              } else {
+                entryForOpening.color = fsEntryMeta.color;
+              }
             }
             if (fsEntryMeta.description !== undefined) {
               entryForOpening.description = fsEntryMeta.description;
@@ -1520,10 +1586,21 @@ export const actions = {
         });
     }
   },
-  openFsEntry: (fsEntry: FileSystemEntry) => (
+  openFsEntry: (fsEntry?: TS.FileSystemEntry) => (
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
+    if (fsEntry === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      fsEntry = getLastSelectedEntry(getState());
+      if (fsEntry === undefined) {
+        return;
+      }
+      if (!fsEntry.isFile) {
+        dispatch(actions.loadDirectoryContent(fsEntry.path));
+        return;
+      }
+    }
     let entryForOpening: OpenedEntry;
     const { openedFiles } = getState().app;
     /**
@@ -1548,10 +1625,16 @@ export const actions = {
     if (fsEntry.url) {
       entryForOpening.url = fsEntry.url;
     } else if (PlatformIO.haveObjectStoreSupport()) {
-      entryForOpening.url = PlatformIO.getURLforPath(fsEntry.path);
+      const cleanedPath = fsEntry.path.startsWith('/')
+        ? fsEntry.path.substr(1)
+        : fsEntry.path;
+      entryForOpening.url = PlatformIO.getURLforPath(cleanedPath);
     }
     if (fsEntry.perspective) {
       entryForOpening.perspective = fsEntry.perspective;
+    }
+    if (fsEntry.color) {
+      entryForOpening.color = fsEntry.color;
     }
     if (fsEntry.description) {
       entryForOpening.description = fsEntry.description;
@@ -1568,7 +1651,7 @@ export const actions = {
     if (fsEntry.isNewFile) {
       entryForOpening.editMode = true;
     }
-    const currentLocation: Location = getLocation(
+    const currentLocation: TS.Location = getLocation(
       getState(),
       getState().app.currentLocationId
     );
@@ -1588,14 +1671,15 @@ export const actions = {
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
+    const lastSelectedEntry = getLastSelectedEntry(getState());
     const nextFile = getNextFile(
       path,
-      getState().app.lastSelectedEntry,
+      lastSelectedEntry ? lastSelectedEntry.path : undefined,
       getState().app.currentDirectoryEntries
     );
     if (nextFile !== undefined) {
       dispatch(actions.openFsEntry(nextFile));
-      dispatch(actions.setLastSelectedEntry(nextFile.path));
+      // dispatch(actions.setLastSelectedEntry(nextFile.path));
       dispatch(actions.setSelectedEntries([nextFile]));
       return nextFile;
     }
@@ -1604,14 +1688,15 @@ export const actions = {
     dispatch: (actions: Object) => void,
     getState: () => any
   ) => {
+    const lastSelectedEntry = getLastSelectedEntry(getState());
     const prevFile = getPrevFile(
       path,
-      getState().app.lastSelectedEntry,
+      lastSelectedEntry ? lastSelectedEntry.path : undefined,
       getState().app.currentDirectoryEntries
     );
     if (prevFile !== undefined) {
       dispatch(actions.openFsEntry(prevFile));
-      dispatch(actions.setLastSelectedEntry(prevFile.path));
+      // dispatch(actions.setLastSelectedEntry(prevFile.path));
       dispatch(actions.setSelectedEntries([prevFile]));
     }
   },
@@ -1630,7 +1715,7 @@ export const actions = {
     type: types.REFLECT_CREATE_ENTRY,
     newEntry
   }),
-  reflectCreateEntries: (fsEntries: Array<FileSystemEntry>) => (
+  reflectCreateEntries: (fsEntries: Array<TS.FileSystemEntry>) => (
     dispatch: (actions: Object) => void
   ) => {
     fsEntries.map(entry => dispatch(actions.reflectCreateEntryInt(entry))); // TODO remove map and set state once
@@ -1652,6 +1737,7 @@ export const actions = {
       lmdt: new Date().getTime(),
       path
     };
+    dispatch(actions.setSelectedEntries([newEntry]));
     dispatch(actions.reflectCreateEntryInt(newEntry));
     dispatch(LocationIndexActions.reflectCreateEntry(newEntry));
   },
@@ -1695,7 +1781,7 @@ export const actions = {
   }), */
   reflectUpdateSidecarTags: (
     path: string,
-    tags: Array<Tag>,
+    tags: Array<TS.Tag>,
     updateIndex: boolean = true
   ) => (dispatch: (actions: Object) => void, getState: () => any) => {
     const { openedFiles } = getState().app;
@@ -1756,7 +1842,8 @@ export const actions = {
     dispatch: (actions: Object) => void
   ) =>
     PlatformIO.renameFilePromise(filePath, newFilePath)
-      .then(() => {
+      .then(result => {
+        const newFilePathFromPromise = result[1];
         console.info('File renamed ' + filePath + ' to ' + newFilePath);
         dispatch(
           actions.showNotification(
@@ -1765,7 +1852,7 @@ export const actions = {
             true
           )
         );
-        dispatch(actions.reflectRenameEntry(filePath, newFilePath));
+        dispatch(actions.reflectRenameEntry(filePath, newFilePathFromPromise));
         // Update sidecar file and thumb
         renameFilesPromise([
           [
@@ -1815,8 +1902,24 @@ export const actions = {
         );
         throw error;
       }),
-  openFileNatively: (selectedFile: string) => () => {
-    PlatformIO.openFile(selectedFile);
+  openFileNatively: (selectedFile?: string) => (
+    dispatch: (actions: Object) => void,
+    getState: () => any
+  ) => {
+    if (selectedFile === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      const fsEntry = getLastSelectedEntry(getState());
+      if (fsEntry === undefined) {
+        return;
+      }
+      if (fsEntry.isFile) {
+        PlatformIO.openFile(fsEntry.path);
+      } else {
+        PlatformIO.openDirectory(fsEntry.path);
+      }
+    } else {
+      PlatformIO.openFile(selectedFile);
+    }
   },
   openLink: (url: string) => (
     dispatch: (actions: Object) => void,
@@ -1830,7 +1933,7 @@ export const actions = {
     if (cmdOpen && cmdOpen.length > 0) {
       const entryPath = decodeURIComponent(cmdOpen);
       getAllPropertiesPromise(entryPath)
-        .then((fsEntry: FileSystemEntry) => {
+        .then((fsEntry: TS.FileSystemEntry) => {
           if (fsEntry.isFile) {
             dispatch(actions.openFsEntry(fsEntry));
           } else {
@@ -1852,7 +1955,7 @@ export const actions = {
       const directoryPath = dPath && decodeURIComponent(dPath);
       const entryPath = ePath && decodeURIComponent(ePath);
       // Check for relative paths
-      const targetLocation: Location = getLocation(getState(), locationId);
+      const targetLocation: TS.Location = getLocation(getState(), locationId);
       if (targetLocation) {
         let openLocationTimer = 1000;
         const isCloudLocation = targetLocation.type === locationType.TYPE_CLOUD;
@@ -1871,7 +1974,7 @@ export const actions = {
 
             if (entryPath) {
               getAllPropertiesPromise(entryPath)
-                .then((fsEntry: FileSystemEntry) => {
+                .then((fsEntry: TS.FileSystemEntry) => {
                   if (fsEntry) {
                     dispatch(actions.openFsEntry(fsEntry));
                   }
@@ -1923,7 +2026,7 @@ export const actions = {
               const entryFullPath =
                 locationPath + PlatformIO.getDirSeparator() + entryPath;
               getAllPropertiesPromise(entryFullPath)
-                .then((fsEntry: FileSystemEntry) => {
+                .then((fsEntry: TS.FileSystemEntry) => {
                   if (fsEntry) {
                     dispatch(actions.openFsEntry(fsEntry));
                   }
@@ -1985,6 +2088,7 @@ export const actions = {
 };
 
 // Selectors
+export const currentUser = (state: any) => state.app.user;
 export const getDirectoryContent = (state: any) =>
   state.app.currentDirectoryEntries;
 export const getCurrentDirectoryColor = (state: any) =>
@@ -2017,12 +2121,33 @@ export const getCurrentLocationPath = (state: any) => {
   }
   return undefined;
 };
+export const getLocationPersistTagsInSidecarFile = (state: any) => {
+  if (state.locations) {
+    for (let i = 0; i < state.locations.length; i += 1) {
+      const location = state.locations[i];
+      if (
+        state.app.currentLocationId &&
+        location.uuid === state.app.currentLocationId
+      ) {
+        return location.persistTagsInSidecarFile;
+      }
+    }
+  }
+  return undefined;
+};
 export const isUpdateAvailable = (state: any) => state.app.isUpdateAvailable;
 export const isUpdateInProgress = (state: any) => state.app.isUpdateInProgress;
 export const isOnline = (state: any) => state.app.isOnline;
-export const getLastSelectedEntry = (state: any) => state.app.lastSelectedEntry;
+export const getLastSelectedEntry = (state: any) => {
+  const { selectedEntries } = state.app;
+  if (selectedEntries && selectedEntries.length > 0) {
+    return selectedEntries[selectedEntries.length - 1];
+  }
+  return undefined;
+};
 export const getSelectedTag = (state: any) => state.app.tag;
-export const getSelectedEntries = (state: any) => state.app.selectedEntries;
+export const getSelectedEntries = (state: any) =>
+  state.app.selectedEntries ? state.app.selectedEntries : [];
 export const isGeneratingThumbs = (state: any) => state.app.isGeneratingThumbs;
 export const isReadOnlyMode = (state: any) => state.app.isReadOnlyMode;
 export const isOnboardingDialogOpened = (state: any) =>

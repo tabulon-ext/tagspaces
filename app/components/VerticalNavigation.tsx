@@ -53,7 +53,8 @@ import {
   isPerspectivesPanelOpened as isPerspectivesOpened,
   isHelpFeedbackPanelOpened as isHelpFeedbackOpened,
   isReadOnlyMode,
-  getProgress
+  getProgress,
+  currentUser
 } from '../reducers/app';
 import { actions as SettingsActions, isFirstRun } from '../reducers/settings';
 import LoadingLazy from './LoadingLazy';
@@ -128,7 +129,6 @@ interface Props {
   isHelpFeedbackPanelOpened: boolean;
   openHelpFeedbackPanel: () => void;
   closeAllVerticalPanels: () => void;
-  openFileNatively: (url: string) => void;
   openURLExternally: (url: string) => void;
   switchTheme: () => void;
   showNotification: (message: string) => void;
@@ -170,7 +170,6 @@ const VerticalNavigation = (props: Props) => {
     openHelpFeedbackPanel,
     closeAllVerticalPanels,
     switchTheme,
-    openFileNatively,
     openURLExternally,
     showNotification,
     directoryPath,
@@ -394,7 +393,6 @@ const VerticalNavigation = (props: Props) => {
           {isSearchPanelOpened && <Search />}
           {isHelpFeedbackPanelOpened && (
             <HelpFeedbackPanel
-              openFileNatively={openFileNatively}
               openURLExternally={openURLExternally}
               toggleAboutDialog={toggleAboutDialog}
               toggleKeysDialog={toggleKeysDialog}
@@ -446,7 +444,7 @@ function mapStateToProps(state) {
     isReadOnlyMode: isReadOnlyMode(state),
     directoryPath: getDirectoryPath(state),
     progress: getProgress(state),
-    user: state.app.user
+    user: currentUser(state)
   };
 }
 
@@ -464,7 +462,6 @@ function mapActionCreatorsToProps(dispatch) {
       openSearchPanel: AppActions.openSearchPanel,
       openPerspectivesPanel: AppActions.openPerspectivesPanel,
       openHelpFeedbackPanel: AppActions.openHelpFeedbackPanel,
-      openFileNatively: AppActions.openFileNatively,
       openURLExternally: AppActions.openURLExternally,
       closeAllVerticalPanels: AppActions.closeAllVerticalPanels,
       showNotification: AppActions.showNotification,

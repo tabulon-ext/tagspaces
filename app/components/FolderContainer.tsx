@@ -26,16 +26,19 @@ import IconButton from '@material-ui/core/IconButton';
 import FolderSeparatorIcon from '@material-ui/icons/ChevronRight';
 import MenuIcon from '@material-ui/icons/Menu';
 import Badge from '@material-ui/core/Badge';
+import { Tooltip } from '@material-ui/core';
 import { withStyles, withTheme } from '@material-ui/core/styles';
+import ToggleButton from '@material-ui/lab/ToggleButton';
+import ToggleButtonGroup from '@material-ui/lab/ToggleButtonGroup';
+import DefaultPerspectiveIcon from '@material-ui/icons/GridOn';
+import GalleryPerspectiveIcon from '@material-ui/icons/Camera';
+import MapiquePerspectiveIcon from '@material-ui/icons/Map';
+// import KanBanPerspectiveIcon from '@material-ui/icons/Dashboard';
 import LocationMenu from './menus/LocationMenu';
 import DirectoryMenu from './menus/DirectoryMenu';
 import i18n from '../services/i18n';
-import {
-  getPerspectives,
-  getMaxSearchResults,
-  getDesktopMode
-} from '-/reducers/settings';
-import { getLocations, Location } from '-/reducers/locations';
+import { getMaxSearchResults, getDesktopMode } from '-/reducers/settings';
+import { getLocations } from '-/reducers/locations';
 import {
   actions as AppActions,
   getDirectoryContent,
@@ -44,15 +47,18 @@ import {
   isReadOnlyMode,
   getCurrentLocationPath,
   getCurrentDirectoryPerspective,
-  OpenedEntry
+  OpenedEntry,
+  perspectives
 } from '../reducers/app';
 import TaggingActions from '../reducers/tagging-actions';
 import { normalizePath, extractShortDirectoryName } from '-/utils/paths';
 import PlatformIO from '../services/platform-io';
 import LoadingLazy from '../components/LoadingLazy';
 import { Pro } from '../pro';
-import { enhanceOpenedEntry, FileSystemEntry } from '-/services/utils-io';
+import { enhanceOpenedEntry } from '-/services/utils-io';
 import AppConfig from '-/config';
+import RenameEntryDialog from '-/components/dialogs/RenameEntryDialog';
+import { TS } from '-/tagspaces.namespace';
 
 const GridPerspective = React.lazy(() =>
   import(
@@ -182,6 +188,14 @@ const styles: any = (theme: any) => ({
     paddingLeft: 10,
     paddingRight: 10,
     alignItems: 'center'
+  },
+  perspecitveSwitch: {
+    bottom: 30,
+    right: 30,
+    zIndex: 1000,
+    opacity: 0.9,
+    position: 'absolute',
+    backgroundColor: theme.palette.background.default
   }
 });
 
@@ -198,17 +212,14 @@ interface Props {
   removeTags: () => void;
   removeAllTags: () => void;
   editTagForEntry: () => void;
-  openFileNatively: (path: string) => void;
-  // deleteFile: () => void;
   renameFile: () => void;
   openDirectory: () => void;
   showInFileManager: () => void;
-  openFsEntry: (fsEntry: FileSystemEntry) => void;
-  // deleteDirectory: (path: string) => void;
+  openFsEntry: (fsEntry: TS.FileSystemEntry) => void;
   reflectCreateEntry: (path: string, isFile: boolean) => void;
   loadDirectoryContent: (path: string) => void;
   loadParentDirectoryContent: () => void;
-  setLastSelectedEntry: (entryPath: string | null) => void;
+  setSelectedEntries: (selectedEntries: Array<Object>) => void;
   isReadOnlyMode: boolean;
   isDesktopMode: boolean;
   showNotification: (content: string) => void;
@@ -225,15 +236,14 @@ interface Props {
 }
 
 const FolderContainer = (props: Props) => {
-  // const [isDirectoryMenuOpened, setDirectoryMenuOpened] = useState<boolean>(false);
-  /* const [directoryContextMenuOpened, setDirectoryContextMenuOpened] = useState<
-    boolean
-  >(false); */
   const [
     directoryContextMenuAnchorEl,
     setDirectoryContextMenuAnchorEl
   ] = useState<null | HTMLElement>(null);
-  // const [perspectiveChooserMenuOpened,setPerspectiveChooserMenuOpened] = useState<boolean>(false);
+
+  const [isRenameEntryDialogOpened, setIsRenameEntryDialogOpened] = useState<
+    boolean
+  >(false);
 
   useEffect(() => {
     if (props.openedFiles.length > 0) {
@@ -276,10 +286,11 @@ const FolderContainer = (props: Props) => {
       normalizedCurrentPath.startsWith(normalizedCurrentLocationPath)
     ) {
       pathParts.push(
-        normalizedCurrentPath.substring(
-          PlatformIO.haveObjectStoreSupport() ? 2 : 1
-        )
-      );
+        normalizedCurrentPath
+          .substring(PlatformIO.haveObjectStoreSupport() ? 2 : 1)
+          .split('/')
+          .join(PlatformIO.getDirSeparator())
+      ); // TODO: optimization needed
       normalizedCurrentPath = normalizedCurrentPath.substring(
         0,
         normalizedCurrentPath.lastIndexOf('/')
@@ -297,39 +308,23 @@ const FolderContainer = (props: Props) => {
   }
 
   const openDirectoryMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    props.setSelectedEntries([]);
     setDirectoryContextMenuAnchorEl(event.currentTarget);
-    // setDirectoryContextMenuOpened(true);
   };
 
   const closeDirectoryMenu = () => {
     setDirectoryContextMenuAnchorEl(null);
-    // setDirectoryContextMenuOpened(false);
   };
 
   const switchPerspective = (perspectiveId: string) => {
-    /* if (!Pro) {
-      props.showNotification(i18n.t('core:needProVersion'));
-      return;
-    } */
     props.setCurrentDirectoryPerspective(perspectiveId);
-    /* savePerspective(props.currentDirectoryPath, perspectiveId || 'default')
-      .then((entryMeta: FileSystemEntryMeta) => {
-        props.setCurrentDirectoryPerspective(entryMeta.perspective);
-        return true;
-      })
-      .catch(error => {
-        console.warn('Error saving perspective for folder ' + error);
-        props.showNotification(i18n.t('Error saving perspective for folder'));
-      }); */
   };
 
-  /* const togglePerspectiveChooserClose = (event?: any) => {
-    perspectiveChooserMenuAnchorEl = event ? event.currentTarget : null;
-    setPerspectiveChooserMenuOpened(!perspectiveChooserMenuOpened);
-  }; */
+  const showWelcomePanel =
+    !props.currentDirectoryPath && props.directoryContent.length < 1;
 
   const renderPerspective = () => {
-    if (!props.currentDirectoryPath && props.directoryContent.length < 1) {
+    if (showWelcomePanel) {
       return AppConfig.showWelcomePanel ? (
         <WelcomePanelAsync />
       ) : (
@@ -351,20 +346,6 @@ const FolderContainer = (props: Props) => {
         />
       );
     }
-    /* if (
-      Pro &&
-      props.currentDirectoryPerspective ===
-        Pro.Perspectives.AvailablePerspectives.TREEVIZ
-    ) {
-      return (
-        <TreeVizPerspectiveAsync
-          directoryContent={props.directoryContent}
-          currentDirectoryPath={props.currentDirectoryPath}
-          windowWidth={props.windowWidth}
-          switchPerspective={switchPerspective}
-        />
-      );
-    } */
     if (
       Pro &&
       props.currentDirectoryPerspective ===
@@ -390,16 +371,14 @@ const FolderContainer = (props: Props) => {
           directoryContent={props.directoryContent}
           loadDirectoryContent={props.loadDirectoryContent}
           openFsEntry={props.openFsEntry}
+          openRenameEntryDialog={() => setIsRenameEntryDialogOpened(true)}
           loadParentDirectoryContent={props.loadParentDirectoryContent}
-          // deleteFile={props.deleteFile}
           renameFile={props.renameFile}
           openDirectory={props.openDirectory}
           showInFileManager={props.showInFileManager}
           currentDirectoryPath={props.currentDirectoryPath}
-          setLastSelectedEntry={props.setLastSelectedEntry}
           addTags={props.addTags}
           editTagForEntry={props.editTagForEntry}
-          // deleteDirectory={props.deleteDirectory}
           removeTags={props.removeTags}
           removeAllTags={props.removeAllTags}
           windowWidth={props.windowWidth}
@@ -407,22 +386,19 @@ const FolderContainer = (props: Props) => {
         />
       );
     }
-    //  else if (this.state.currentPerspective === 'default') {
     return (
       <GridPerspectiveAsync
         directoryContent={props.directoryContent}
         loadDirectoryContent={props.loadDirectoryContent}
         openFsEntry={props.openFsEntry}
+        openRenameEntryDialog={() => setIsRenameEntryDialogOpened(true)}
         loadParentDirectoryContent={props.loadParentDirectoryContent}
-        // deleteFile={props.deleteFile}
         renameFile={props.renameFile}
         openDirectory={props.openDirectory}
         showInFileManager={props.showInFileManager}
         currentDirectoryPath={props.currentDirectoryPath}
-        setLastSelectedEntry={props.setLastSelectedEntry}
         addTags={props.addTags}
         editTagForEntry={props.editTagForEntry}
-        // deleteDirectory={props.deleteDirectory}
         removeTags={props.removeTags}
         removeAllTags={props.removeAllTags}
         windowWidth={props.windowWidth}
@@ -440,7 +416,8 @@ const FolderContainer = (props: Props) => {
     showDrawer,
     isDesktopMode,
     theme,
-    loadParentDirectoryContent
+    loadParentDirectoryContent,
+    currentDirectoryPerspective
   } = props;
   const normalizedCurrentDirPath = normalizePath(
     currentDirectoryPath.split('\\').join('/')
@@ -452,6 +429,10 @@ const FolderContainer = (props: Props) => {
       searchResultCount +
       ' entries.';
   }
+
+  const currentPerspective =
+    currentDirectoryPerspective || perspectives.DEFAULT;
+
   return (
     <div data-tid="folderContainerTID">
       <div className={classes.mainPanel}>
@@ -496,7 +477,10 @@ const FolderContainer = (props: Props) => {
                       backgroundColor: theme.palette.background.default
                     }}
                   >
-                    {extractShortDirectoryName(pathPart, '/')}
+                    {extractShortDirectoryName(
+                      pathPart,
+                      PlatformIO.getDirSeparator()
+                    )}
                     <FolderSeparatorIcon />
                   </Button>
                 ))}
@@ -541,6 +525,9 @@ const FolderContainer = (props: Props) => {
                     anchorEl={directoryContextMenuAnchorEl}
                     directoryPath={currentDirectoryPath}
                     loadDirectoryContent={props.loadDirectoryContent}
+                    openRenameDirectoryDialog={() =>
+                      setIsRenameEntryDialogOpened(true)
+                    }
                     openDirectory={props.openDirectory}
                     reflectCreateEntry={props.reflectCreateEntry}
                     openFsEntry={props.openFsEntry}
@@ -557,8 +544,61 @@ const FolderContainer = (props: Props) => {
           style={{ height: props.windowHeight }}
         >
           {renderPerspective()}
+          {isRenameEntryDialogOpened && (
+            <RenameEntryDialog
+              open={isRenameEntryDialogOpened}
+              currentDirectoryPath={props.currentDirectoryPath}
+              onClose={() => setIsRenameEntryDialogOpened(false)}
+            />
+          )}
         </div>
       </div>
+      {Pro && props.isDesktopMode && !showWelcomePanel && (
+        <ToggleButtonGroup
+          value={currentPerspective}
+          size="small"
+          aria-label="change perspective"
+          exclusive
+          className={classes.perspecitveSwitch}
+        >
+          <ToggleButton
+            value={perspectives.DEFAULT}
+            aria-label={perspectives.DEFAULT}
+            onClick={() => switchPerspective(perspectives.DEFAULT)}
+          >
+            <Tooltip arrow title="Switch to default perspective">
+              <div style={{ display: 'flex' }}>
+                <DefaultPerspectiveIcon />
+                {perspectives.DEFAULT}
+              </div>
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton
+            value={perspectives.GALLERY}
+            aria-label={perspectives.GALLERY}
+            onClick={() => switchPerspective(perspectives.GALLERY)}
+          >
+            <Tooltip arrow title="Switch to Gallery perspective">
+              <div style={{ display: 'flex' }}>
+                <GalleryPerspectiveIcon />
+                {perspectives.GALLERY}
+              </div>
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton
+            value={perspectives.MAPIQUE}
+            aria-label={perspectives.MAPIQUE}
+            onClick={() => switchPerspective(perspectives.MAPIQUE)}
+          >
+            <Tooltip arrow title="Switch to Mapique perspective">
+              <div style={{ display: 'flex' }}>
+                <MapiquePerspectiveIcon />
+                {perspectives.MAPIQUE}
+              </div>
+            </Tooltip>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      )}
     </div>
   );
 };
@@ -567,7 +607,6 @@ function mapStateToProps(state) {
   return {
     settings: state.settings,
     lastSelectedEntry: getLastSelectedEntry(state),
-    perspectives: getPerspectives(state),
     directoryContent: getDirectoryContent(state),
     currentDirectoryPerspective: getCurrentDirectoryPerspective(state),
     searchResultCount: getSearchResultCount(state),
@@ -586,30 +625,39 @@ function mapActionCreatorsToProps(dispatch) {
       removeTags: TaggingActions.removeTags,
       removeAllTags: TaggingActions.removeAllTags,
       editTagForEntry: TaggingActions.editTagForEntry,
-      openFileNatively: AppActions.openFileNatively,
-      // deleteFile: AppActions.deleteFile,
       renameFile: AppActions.renameFile,
       openDirectory: AppActions.openDirectory,
       showInFileManager: AppActions.showInFileManager,
       openFsEntry: AppActions.openFsEntry,
-      // deleteDirectory: AppActions.deleteDirectory,
       reflectCreateEntry: AppActions.reflectCreateEntry,
       loadDirectoryContent: AppActions.loadDirectoryContent,
       loadParentDirectoryContent: AppActions.loadParentDirectoryContent,
-      setLastSelectedEntry: AppActions.setLastSelectedEntry,
+      setSelectedEntries: AppActions.setSelectedEntries,
       showNotification: AppActions.showNotification,
       openSearchPanel: AppActions.openSearchPanel,
       setCurrentDirectoryPerspective: AppActions.setCurrentDirectoryPerspective,
       updateCurrentDirEntry: AppActions.updateCurrentDirEntry,
       setCurrentDirectoryColor: AppActions.setCurrentDirectoryColor
-      // changeLocation: AppActions.changeLocation
     },
     dispatch
   );
 }
 
+const areEqual = (prevProp, nextProp) =>
+  nextProp.currentDirectoryPath === prevProp.currentDirectoryPath &&
+  nextProp.currentDirectoryPerspective ===
+    prevProp.currentDirectoryPerspective &&
+  nextProp.currentLocationPath === prevProp.currentLocationPath &&
+  JSON.stringify(nextProp.directoryContent) ===
+    JSON.stringify(prevProp.directoryContent) &&
+  JSON.stringify(nextProp.openedFiles) ===
+    JSON.stringify(prevProp.openedFiles) &&
+  JSON.stringify(nextProp.theme) === JSON.stringify(prevProp.theme) &&
+  nextProp.windowWidth === prevProp.windowWidth &&
+  nextProp.windowHeight === prevProp.windowHeight;
+
 export default connect(
   mapStateToProps,
   mapActionCreatorsToProps
   // @ts-ignore
-)(withStyles(styles)(withTheme(FolderContainer)));
+)(withStyles(styles)(withTheme(React.memo(FolderContainer, areEqual))));
