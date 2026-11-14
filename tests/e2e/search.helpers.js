@@ -1,9 +1,15 @@
+import { findAction } from '../../src/renderer/components/SearchOptions';
 import {
   clickOn,
   expectElementExist,
+  getGridFileSelector,
+  isDisplayed,
+  selectRowFiles,
   setInputValue,
+  typeInputValue,
   waitForNotification
 } from './general.helpers';
+import { AddRemoveTagsToSelectedFiles } from './perspective-grid.helpers';
 
 export const regexQuery = '!"#$%&\'()*+,-./@:;<=>[\\]^_`{|}~';
 export const searchTag = 'tag1';
@@ -11,103 +17,152 @@ export const searchTagDate = '201612';
 export const searchSubFolder = '/search';
 export const testFileInSubDirectory = 'sample_exif';
 export const testFilename = 'sample.desktop';
+export const emptyFolderName = 'empty_folder';
 export const firstTagButton = '/tbody/tr[1]/td[3]/button[1]';
 
+export async function addSearchCommand(
+  command,
+  executeSearch = true,
+  forceOpenMenu = false,
+) {
+  if (!(await isDisplayed('#textQuery', true, 4000))) {
+    await clickOn('[data-tid=toggleSearch]');
+  }
+  await expectElementExist('#textQuery', true, 3000);
+  await global.client.type('#textQuery', command);
+  if (!findAction(command, true)) {
+    await global.client.keyboard.press('Enter');
+  }
+  if (executeSearch) {
+    await global.client.keyboard.press('Enter');
+    await global.client.keyboard.press('Enter');
+  } else if (forceOpenMenu) {
+    await global.client.keyboard.press('ArrowDown');
+  }
+}
 /**
- *
  * @param filename
  * @param options = {
  *     tagName: true
  *     resetSearchButton: true
  *     reindexing: true
  * }
+ * @param executeSearch
  * @returns {Promise<void>}
  */
-export async function searchEngine(filename, options = {}) {
-  const textQuery = await global.client.$('#textQuery');
-  if (!(await textQuery.isDisplayed())) {
-    await clickOn('[data-tid=search]');
+export async function searchEngine(
+  filename,
+  options = {},
+  executeSearch = true,
+) {
+  if (!(await isDisplayed('#textQuery', true, 3000))) {
+    await clickOn('[data-tid=toggleSearch]');
+    await expectElementExist('#textQuery', true, 5000);
   }
-  await expectElementExist('#textQuery', true);
-  await setInputValue('#textQuery', filename);
+  await global.client.type('#textQuery', filename);
+  if (executeSearch) {
+    if (!(await isDisplayed('[data-tid=searchAdvancedTID]', true, 3000))) {
+      await clickOn('[data-tid=advancedSearch]');
+    }
+    if (options.tagName) {
+      await setInputValue('[data-tid=searchTagsAndTID] input', filename);
+    }
 
-  if (options.tagName) {
-    await setInputValue('#searchTags', filename);
-  }
+    if (options.reindexing) {
+      // "Rebuild index" in the advanced search header does a full re-index
+      // of the current location; wait until it has finished (the button is
+      // disabled while indexing) before searching.
+      await clickOn('[data-tid=rebuildIndexTID]');
+      await global.client
+        .waitForSelector('[data-tid=rebuildIndexTID]:disabled', {
+          timeout: 3000,
+        })
+        .catch(() => {}); // a tiny index can finish before we look
+      await global.client.waitForSelector('[data-tid=rebuildIndexTID]:enabled', {
+        timeout: 60000,
+      });
+    }
+    if (options.searchType) {
+      await clickOn('[data-tid=' + options.searchType + ']');
+    } else {
+      await clickOn('[data-tid=strictSearchTID]');
+    }
 
-  if (options.reindexing) {
-    await clickOn('[data-tid=forceIndexingTID]');
-  }
-
-  if (options.resetSearchButton) {
-    await clickOn('#resetSearchButton');
-  } else {
-    await clickOn('#searchButton');
-  }
-  await waitForNotification('TIDSearching');
-  if (!global.isElectron) {
-    await global.client.pause(1500); //todo: for minio search is slow
+    if (options.resetSearchButton) {
+      await clickOn('#resetSearchButton');
+    } else {
+      await clickOn('#searchButtonAdvTID');
+    }
+    await waitForNotification('TIDSearching');
   }
 }
 
-/*describe('TST06 - Test Search in file structure:', () => {
-  beforeEach(async () => {
-    await clearLocalStorage();
-    await delay(500);
-    await createLocation(defaultLocationPath, defaultLocationName, false);
-    await delay(500);
-    await openLocation(defaultLocationName);
-    await delay(500);
-  });
+/**
+ * @param searchQuery TS.SearchQuery
+ * @returns {Promise<void>}
+ */
+export async function createSavedSearch(searchQuery) {
+  //if (!(await global.client.$('#textQuery'))) {
+  // await isDisplayed('#textQuery', false)) {
+  await global.client.waitForTimeout(1000); // todo remove timeout (toggleSearch and advancedSearch is not click)
+  await clickOn('[data-tid=toggleSearch]');
+  await clickOn('[data-tid=advancedSearch]');
+  await expectElementExist('#searchTerm');
+  await global.client.dblclick('#searchTerm');
+  await typeInputValue('#searchTerm', searchQuery.textQuery, 0);
 
-  it('TST0601 - Simple Search / filter the current folder', async () => {
-    await searchEngine(testFilename);
-    // expected current filename
-    await checkFilenameForExist(testFilename);
-  });
+  await clickOn('#searchButtonAdvTID');
+  await clickOn('[data-tid=advancedSearch]');
+  await clickOn('[data-tid=addSearchBtnTID]');
+  await expectElementExist('[data-tid=savedSearchTID]');
+  await global.client.dblclick('[data-tid=savedSearchTID]');
+  await typeInputValue('[data-tid=savedSearchTID] input', searchQuery.title, 0);
+  await clickOn('[data-tid=confirmSavedSearchTID]');
+  //await clickOn('[data-tid=closeSearchTID]');
+}
 
-  it('TST0602 - Search in sub folder: word with "?" in front of the query', async () => {
-    await searchEngine('? ' + testFileInSubDirectory);
-    // expected current filename
-    await checkFilenameForExist(testFileInSubDirectory);
-  });
+export async function addRemoveTagsInSearchResults(
+  tags = ['test-tag3', 'test-tag4'],
+) {
+  await global.client.dblclick(
+    '[data-tid=fsEntryName_' + emptyFolderName + ']',
+  );
+  await searchEngine(testFilename); //, { reindexing: true });
+  // expected current filename
+  await expectElementExist(getGridFileSelector(testFilename), true, 5000);
 
-  it('TST0602 - Advanced Search: word with "?" in front of the query', async () => {
-    await searchEngine('? ' + testFileInSubDirectory);
-    // expected current filename
-    await checkFilenameForExist(testFileInSubDirectory);
-  });
+  let selectedIds = await selectRowFiles([0]);
 
-  it('TST0603 - Advanced Search: word with "!" symbol in front of the query', async () => {
-    await searchEngine('! ' + testFileInSubDirectory);
-    // expected current filename
-    await checkFilenameForExist(testFileInSubDirectory);
-  });
+  await AddRemoveTagsToSelectedFiles('grid', tags);
 
-  it('TST0604 - Search for tag', async () => {
-    await searchEngine('! ' + testFileInSubDirectory, searchTag);
-    // expected current filename and tag
-    await checkFilenameForExist(testFileInSubDirectory);
-  });
+  for (let i = 0; i < tags.length; i++) {
+    await expectElementExist(
+      '[data-tid=tagContainer_' + tags[i] + ']',
+      true,
+      5000,
+    );
+  }
+  /*if (await isDisabled('[data-tid=listPerspectiveAddRemoveTags]')) {
+    //select rows to enable button
+    selectedIds = await selectRowFiles([0]);
+  }*/
+  await AddRemoveTagsToSelectedFiles('grid', tags, false);
 
-  it('TST0604 - Advanced Search: word with "+" symbol in front of the query', async () => {
-    await searchEngine('+ ' + testFileInSubDirectory);
-  });
-
-  it('TST0604 - Advanced Search: word and tag', async () => {
-    await searchEngine('+ ' + testFileInSubDirectory);
-    // expected current filename and tag
-    await checkFilenameForExist(testFilename, searchTag);
-  });
-
-  it('Advanced Search: test with regex query', async () => {
-    await searchEngine(regexQuery);
-    // expected current filename
-    await checkFilenameForExist(testFileInSubDirectory);
-  });
-
-  it('Advanced Search: reset button', async () => {
-    await searchEngine(testFileInSubDirectory, searchTag, true);
-    // expected to reset all search engine
-  });
-});*/
+  for (let i = 0; i < tags.length; i++) {
+    await expectElementExist(
+      '[data-tid=tagContainer_' + tags[i] + ']',
+      false,
+      5000,
+    );
+    /*await expectElementExist(
+      selectorFile + '[' + (i + 1) + ']//div[@id="gridCellTags"]//button[1]',
+      false,
+      1500
+    );*/
+    /*await expectTagsExistBySelector(
+      '[data-entry-id="' + selectedIds[i] + '"]',
+      tags,
+      false
+    );*/
+  }
+}

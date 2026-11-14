@@ -1,149 +1,225 @@
+name: Pull Request Workflow Dispatch Trigger
 on: pull_request
-name: PR
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  #  gitHubActionForNpm:
-  #    name: Validating Ubuntu
-  #    runs-on: ubuntu-latest
-
-  #    steps:
-  #      - name: Checking out default branch
-  #        uses: actions/checkout@v2
-  #        with:
-  #          submodules: true
-  #      - uses: actions/setup-node@v2-beta
-  #        with:
-  #          node-version: '10.x'
-  #      - name: Install display server dependencies
-  #        run: |
-  #          sudo apt-get install xvfb libxtst6 libxss1 libgtk2.0-0 -y
-  #      - name: Install core libraries for chromium driver
-  #        run: |
-  #          sudo apt-get install libnss3 libasound2 libgconf-2-4 libgbm1 -y
-  #      - name: Running yarn install, prettier and type checks
-  #        run: |
-  #          yarn install --force --check-files --cache-folder .ycache
-  #          yarn prettier-check
-  #          yarn type-check
-  #      - name: Run Unit tests
-  #        run: yarn test-unit
-
   e2eTestsWin:
-    name: Validating Windows
+    name: Test desktop pro app on Windows
     runs-on: windows-latest
-
+    env:
+      PD_PLATFORM: node
     steps:
       - name: Checking out default branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
       - name: Checkout TestData
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: tagspaces/testdata
           path: tests/testdata
-      - uses: actions/setup-node@v2-beta
+      - name: Configure NPM for TagSpaces Pro
+        uses: actions/setup-node@v4
         with:
-          node-version: '12.x'
-      - name: Running yarn install, prettier and type checks
+          node-version: '22.x'
+          always-auth: true
+          registry-url: https://npm.pkg.github.com/
+          scope: '@tagspacespro'
+      - name: Running npm install, prettier and type checks
         run: |
-          yarn install --check-files --cache-folder .ycache
-          yarn prettier-check
-          yarn type-check
+          npm install
+          npm run prepare-node
+          npm run prettier-check
+          npm run type-check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.TSPNPMINSTALL }}
       - name: Run Unit tests
-        run: yarn test-unit
+        run: npm run test-unit
       - name: Run Electron tests
         run: |
-          yarn install-ext
-          yarn build-e2e
-          yarn test-e2e-electron
-      - uses: IgnusG/jest-report-action@v2.3.3
-        if: always() # Run regardless of whether other steps failed
-        with:
-          access-token: ${{ secrets.GITHUB_TOKEN }}
-          check-name: Jest Report Electron
-          working-directory: tests
-      - uses: actions/upload-artifact@v2
+          npm run build-e2e
+          npm run test-playwright
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-artifacts
+          name: test-artifacts-desktop-win
           path: |
-            tests/test-pages/
+            test-results/
             tests/test-reports/
+            playwright-report/
+  e2eTestsWinS3:
+    name: Test desktop pro app on Mac with S3Proxy
+    runs-on: macos-latest
+    env:
+      PD_PLATFORM: node
+    steps:
+      - name: Checking out default branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Checkout TestData
+        uses: actions/checkout@v4
+        with:
+          repository: tagspaces/testdata
+          path: tests/testdata
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Configure NPM for TagSpaces Pro
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          always-auth: true
+          registry-url: https://npm.pkg.github.com/
+          scope: '@tagspacespro'
+      - name: Running npm install, prettier and type checks
+        run: |
+          npm install
+          npm run prepare-node
+          npm run prettier-check
+          npm run type-check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.TSPNPMINSTALL }}
+      - name: Run Unit tests
+        run: npm run test-unit
+      - name: Cache S3Proxy JAR
+        id: cache-s3proxy
+        uses: actions/cache@v4
+        with:
+          path: tests/s3proxy.jar
+          key: s3proxy-3.0.0
+      - name: Download S3Proxy
+        if: steps.cache-s3proxy.outputs.cache-hit != 'true'
+        run: curl -sL -o tests/s3proxy.jar "https://repo1.maven.org/maven2/org/gaul/s3proxy/3.0.0/s3proxy-3.0.0-jar-with-dependencies.jar"
+      - name: Run Electron tests
+        run: |
+          npm run build-e2e
+          npm run test-playwright-s3
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-artifacts-desktop-s3-win
+          path: |
+            test-results/
+            tests/test-reports/
+            playwright-report/
   e2eTestsWebWin:
-    name: E2E Windows Web
+    name: Test web pro app on Windows with S3Proxy
     runs-on: windows-latest
+    env:
+      PD_PLATFORM: web
     steps:
       - name: Checking out default branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
-      - name: Checkout TagspacesPro
-        uses: actions/checkout@v2
-        with:
-          repository: tagspaces/tagspacespro
-          token: ${{ secrets.CHECKOUT_TSPRO  }}
-          path: extensions/tagspacespro
       - name: Checkout TestData
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: tagspaces/testdata
           path: tests/testdata
-      - uses: actions/setup-node@v2-beta
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          node-version: '12.x'
-      - name: Running yarn install, prettier and type checks
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Configure NPM for TagSpaces Pro
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          always-auth: true
+          registry-url: https://npm.pkg.github.com/
+          scope: '@tagspacespro'
+      - name: Running npm install, prettier and type checks
         run: |
-          yarn install --check-files --cache-folder .ycache
-          yarn prettier-check
-          yarn type-check
+          npm install
+          npm run prepare-web-pro
+          npm run prettier-check
+          npm run type-check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.TSPNPMINSTALL }}
       - name: Run Unit tests
-        run: yarn test-unit
-      - uses: suisei-cn/actions-download-file@v1
-        id: minio
-        name: Download the Minio.exe
+        run: npm run test-unit
+      - name: Cache S3Proxy JAR
+        id: cache-s3proxy
+        uses: actions/cache@v4
         with:
-          url: 'https://dl.min.io/server/minio/release/windows-amd64/minio.exe'
-          target: tests/bin/
-      - name: Run Electron tests
+          path: tests/s3proxy.jar
+          key: s3proxy-3.0.0
+      - name: Download S3Proxy
+        if: steps.cache-s3proxy.outputs.cache-hit != 'true'
+        run: curl -sL -o tests/s3proxy.jar "https://repo1.maven.org/maven2/org/gaul/s3proxy/3.0.0/s3proxy-3.0.0-jar-with-dependencies.jar"
+      - name: Run E2E tests
         run: |
-          yarn install-ext
-          yarn build-e2e
-          yarn test-e2e-web
-      - uses: IgnusG/jest-report-action@v2.3.3
-        if: always() # Run regardless of whether other steps failed
-        with:
-          access-token: ${{ secrets.GITHUB_TOKEN }}
-          check-name: Jest Report Web
-          working-directory: tests
-      - uses: actions/upload-artifact@v2
+          npm run build-e2e-web
+          npm run test-playwright-web-headless
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-artifacts-web
+          name: test-artifacts-web-s3-win
           path: |
-            tests/test-pages/
+            test-results/
             tests/test-reports/
-  # gitHubActionForNpmMac:
-  #  name: Validating MacOS
-  #  runs-on: macos-latest
-  #  steps:
-  #    - name: Checking out default branch
-  #      uses: actions/checkout@v2
-  #      with:
-  #        submodules: true
-  #    - uses: actions/setup-node@v2-beta
-  #      with:
-  #        node-version: '10.x'
-  #    - name: Running yarn install, prettier and type checks
-  #      run: |
-  #        yarn install --check-files --cache-folder .ycache
-  #        yarn prettier-check
-  #        yarn type-check
-  #    - name: Run Unit tests
-  #      run: yarn test-unit
-  #    - name: Run Electron tests
-  #      run: |
-  #        yarn install-ext
-  #        yarn build-main
-  #        yarn build-e2e
-  #        yarn test-e2e-electron
+            playwright-report/
+  e2eTestsWebMac:
+    name: Test web pro app on Mac OS with S3Proxy
+    runs-on: macos-latest
+    env:
+      PD_PLATFORM: web
+    steps:
+      - name: Checking out default branch
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Checkout TestData
+        uses: actions/checkout@v4
+        with:
+          repository: tagspaces/testdata
+          path: tests/testdata
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Configure NPM for TagSpaces Pro
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          always-auth: true
+          registry-url: https://npm.pkg.github.com/
+          scope: '@tagspacespro'
+      - name: Running npm install, prettier and type checks
+        run: |
+          npm install
+          npm run prepare-web-pro
+          npm run prettier-check
+          npm run type-check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.TSPNPMINSTALL }}
+      - name: Run Unit tests
+        run: npm run test-unit
+      - name: Cache S3Proxy JAR
+        id: cache-s3proxy
+        uses: actions/cache@v4
+        with:
+          path: tests/s3proxy.jar
+          key: s3proxy-3.0.0
+      - name: Download S3Proxy
+        if: steps.cache-s3proxy.outputs.cache-hit != 'true'
+        run: curl -sL -o tests/s3proxy.jar "https://repo1.maven.org/maven2/org/gaul/s3proxy/3.0.0/s3proxy-3.0.0-jar-with-dependencies.jar"
+      - name: Run E2E tests
+        run: |
+          npm run build-e2e-web
+          npm run test-playwright-web-headless
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-artifacts-web-mac-s3
+          path: |
+            test-results/
+            tests/test-reports/
+            playwright-report/

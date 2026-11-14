@@ -1,0 +1,781 @@
+/**
+ * TagSpaces - universal file and folder organizer
+ * Copyright (C) 2017-present TagSpaces GmbH
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License (version 3) as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+import AppConfig from '-/AppConfig';
+import {
+  AccountIcon,
+  AddExistingFileIcon,
+  ArrowDropDownIcon,
+  AudioFileIcon,
+  CreateFileIcon,
+  DownloadIcon,
+  HTMLFileIcon,
+  HelpIcon,
+  LinkFileIcon,
+  LocalLocationIcon,
+  MarkdownFileIcon,
+  NewFileIcon,
+  NewFolderIcon,
+  OpenLinkIcon,
+  OpenNewWindowIcon,
+  RecentThingsIcon,
+  SettingsIcon,
+  TagLibraryIcon,
+  TakePictureIcon,
+  TemplateFileIcon,
+  ThemingIcon,
+  WorkspacesIcon,
+} from '-/components/CommonIcons';
+import CustomLogo from '-/components/CustomLogo';
+import HelpFeedbackPanel from '-/components/HelpFeedbackPanel';
+import { BetaLabel, ProLabel } from '-/components/HelperComponents';
+import InfoIcon from '-/components/InfoIcon';
+import LocationManager from '-/components/LocationManager';
+import ProTeaser from '-/components/ProTeaser';
+import StoredSearches from '-/components/StoredSearches';
+import TagLibrary from '-/components/TagLibrary';
+import TsButton from '-/components/TsButton';
+import TsMenuList from '-/components/TsMenuList';
+import TsToolbarButton from '-/components/TsToolbarButton';
+import { useCreateDirectoryDialogContext } from '-/components/dialogs/hooks/useCreateDirectoryDialogContext';
+import { useCreateEditLocationDialogContext } from '-/components/dialogs/hooks/useCreateEditLocationDialogContext';
+import { useDownloadUrlDialogContext } from '-/components/dialogs/hooks/useDownloadUrlDialogContext';
+import { useLinkDialogContext } from '-/components/dialogs/hooks/useLinkDialogContext';
+import { useNewAudioDialogContext } from '-/components/dialogs/hooks/useNewAudioDialogContext';
+import { useNewFileDialogContext } from '-/components/dialogs/hooks/useNewFileDialogContext';
+import { useSettingsDialogContext } from '-/components/dialogs/hooks/useSettingsDialogContext';
+import { useCurrentLocationContext } from '-/hooks/useCurrentLocationContext';
+import { useDirectoryContentContext } from '-/hooks/useDirectoryContentContext';
+import { useFileUploadContext } from '-/hooks/useFileUploadContext';
+import { usePanelsContext } from '-/hooks/usePanelsContext';
+import { useUserContext } from '-/hooks/useUserContext';
+import { Pro } from '-/pro';
+import { AppDispatch } from '-/reducers/app';
+import {
+  actions as SettingsActions,
+  getKeyBindingObject,
+  isDesktopMode,
+  isHideProFeatures,
+} from '-/reducers/settings';
+import { createNewInstance } from '-/services/utils-io';
+import { TS } from '-/tagspaces.namespace';
+import { ClickAwayListener, Divider, Popover } from '@mui/material';
+import Box from '@mui/material/Box';
+import ButtonGroup from '@mui/material/ButtonGroup';
+import Grow from '@mui/material/Grow';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
+import Paper from '@mui/material/Paper';
+import Popper from '@mui/material/Popper';
+import { alpha, ThemeProvider, useTheme } from '@mui/material/styles';
+import React, {
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDispatch, useSelector } from 'react-redux';
+import TsIconButton from './TsIconButton';
+import UserDetailsPopover from './UserDetailsPopover';
+
+interface Props {
+  hideDrawer?: () => void;
+  width?: number;
+  widthVar?: string;
+  // Let the native window material (macOS vibrancy) show through
+  translucent?: boolean;
+}
+
+function MobileNavigation(props: Props) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const desktopMode = useSelector(isDesktopMode);
+  const dispatch: AppDispatch = useDispatch();
+  const { setSelectedLocation, currentLocation, locations } =
+    useCurrentLocationContext();
+  const { currentDirectoryPath } = useDirectoryContentContext();
+  const { openFileUpload, openCameraCapture } = useFileUploadContext();
+  const { openCreateEditLocationDialog } = useCreateEditLocationDialogContext();
+  const { openCreateDirectoryDialog } = useCreateDirectoryDialogContext();
+  const { openNewFileDialog } = useNewFileDialogContext();
+  const { openNewAudioDialog } = useNewAudioDialogContext();
+  const { openSettingsDialog } = useSettingsDialogContext();
+  const { openLinkDialog } = useLinkDialogContext();
+  const { currentOpenedPanel, showPanel } = usePanelsContext();
+  const { openDownloadUrl } = useDownloadUrlDialogContext();
+  const keyBindings = useSelector(getKeyBindingObject);
+  const hideProFeatures: boolean = useSelector(isHideProFeatures);
+  const { currentUser } = useUserContext();
+  const [showTeaserBanner, setShowTeaserBanner] = useState(true);
+  const [anchorUser, setAnchorUser] = useState<HTMLButtonElement | null>(null);
+  const showProTeaser = !hideProFeatures && !Pro && showTeaserBanner;
+  const { hideDrawer, width, widthVar, translucent } = props;
+  const navBackground = translucent
+    ? 'transparent'
+    : theme.palette.background.default;
+  // The theme's frosted menus rely on a CSS backdrop blur, which can't reach
+  // the native vibrancy behind a translucent drawer — so menus declared in
+  // here would look see-through. Make them opaque instead.
+  const drawerTheme = useMemo(
+    () =>
+      translucent
+        ? {
+            ...theme,
+            components: {
+              ...theme.components,
+              MuiMenu: {
+                styleOverrides: {
+                  paper: {
+                    borderRadius: AppConfig.defaultCSSRadius,
+                    backgroundColor: theme.palette.background.paper,
+                    backgroundImage: 'none',
+                    border: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+                  },
+                },
+              },
+            },
+          }
+        : theme,
+    [theme, translucent],
+  );
+  const widthValue = widthVar
+    ? `var(${widthVar}, ${width || 320}px)`
+    : width || 320;
+  const switchTheme = useCallback(
+    () => dispatch(SettingsActions.switchTheme()),
+    [dispatch],
+  );
+  const [openedCreateMenu, setOpenCreateMenu] = useState(false);
+  const [openedWorkSpaceMenu, setOpenWorkSpaceMenu] = useState(false);
+  const anchorWSpaceRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+
+  const workSpacesContext = Pro?.contextProviders?.WorkSpacesContext
+    ? useContext<TS.WorkSpacesContextData>(
+        Pro.contextProviders.WorkSpacesContext,
+      )
+    : undefined;
+  const workSpaces: TS.WorkSpace[] = workSpacesContext?.getWorkSpaces() ?? [];
+
+  const handleToggle = useCallback(
+    () => setOpenCreateMenu((prev) => !prev),
+    [],
+  );
+  const handleToggleWorkSpaces = useCallback(
+    () => setOpenWorkSpaceMenu((prev) => !prev),
+    [],
+  );
+  const handleClose = useCallback((event: Event) => {
+    if (
+      anchorRef.current &&
+      anchorRef.current.contains(event.target as HTMLElement)
+    )
+      return;
+    setOpenCreateMenu(false);
+  }, []);
+  const handleCloseWSpace = useCallback((event: Event) => {
+    if (
+      anchorWSpaceRef.current &&
+      anchorWSpaceRef.current.contains(event.target as HTMLElement)
+    )
+      return;
+    setOpenWorkSpaceMenu(false);
+  }, []);
+
+  // Memoize workspace menu items for performance
+  const workspaceMenuItems = useMemo(
+    () => [
+      <MenuItem
+        key="allWSpace"
+        data-tid={'wSpaceAllTID'}
+        onClick={() => {
+          workSpacesContext?.setCurrentWorkSpaceId(undefined);
+          setOpenWorkSpaceMenu(false);
+        }}
+      >
+        <ListItemIcon>
+          <WorkspacesIcon />
+        </ListItemIcon>
+        <ListItemText primary={t('all')} />
+      </MenuItem>,
+      ...workSpaces.map((wSpace) => (
+        <MenuItem
+          key={wSpace.uuid}
+          data-tid={'wSpace' + wSpace.shortName + 'TID'}
+          onClick={() => {
+            workSpacesContext?.setCurrentWorkSpaceId(wSpace.uuid);
+            setOpenWorkSpaceMenu(false);
+          }}
+        >
+          <ListItemIcon>
+            <WorkspacesIcon />
+          </ListItemIcon>
+          <ListItemText primary={`${wSpace.fullName} - ${wSpace.shortName}`} />
+        </MenuItem>
+      )),
+    ],
+    [workSpaces, t, workSpacesContext],
+  );
+
+  return (
+    <ThemeProvider theme={drawerTheme}>
+      <Box
+        sx={{
+          background: alpha(
+            theme.palette.background.default,
+            translucent ? 0.35 : 0.85,
+          ),
+          backdropFilter: translucent ? undefined : 'blur(5px)',
+          height: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          width: widthValue,
+          maxWidth: widthValue,
+          // The drawer paper is position:fixed at the viewport top, so it ignores
+          // the body's safe-area padding and would render under the notch. Inset
+          // it ourselves. Use the --sat variable (kept correct by io-capacitor's
+          // recovery on iOS) rather than env() directly, so it survives the
+          // WKWebView env(safe-area-inset-top) collapse after the in-app browser.
+          paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
+          boxSizing: 'border-box',
+        }}
+      >
+        <Box
+          sx={{
+            overflow: 'hidden',
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <Box sx={{ flexShrink: 0 }}>
+            <CustomLogo />
+            <Box
+              sx={{
+                width: '100%',
+                justifyContent: 'center',
+                paddingLeft: '10px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <ButtonGroup
+                aria-label="split button"
+                sx={{
+                  textAlign: 'center',
+                  marginLeft: '5px',
+                  marginRight: '5px',
+                }}
+              >
+                <TsButton
+                  ref={anchorRef}
+                  aria-controls={
+                    openedCreateMenu ? 'split-button-menu' : undefined
+                  }
+                  aria-expanded={openedCreateMenu ? 'true' : undefined}
+                  aria-haspopup="menu"
+                  data-tid="createNewDropdownButtonTID"
+                  onClick={handleToggle}
+                  startIcon={<CreateFileIcon />}
+                  endIcon={<ArrowDropDownIcon />}
+                  sx={{
+                    borderRadius: 'unset',
+                    borderTopLeftRadius: AppConfig.defaultCSSRadius,
+                    borderBottomLeftRadius: AppConfig.defaultCSSRadius,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      maxWidth: 100,
+                    }}
+                  >
+                    {t('core:new')}
+                  </Box>
+                </TsButton>
+                {workSpaces && workSpaces.length > 0 && (
+                  <TsButton
+                    ref={anchorWSpaceRef}
+                    tooltip={t('currentWorkspace')}
+                    aria-controls={
+                      openedWorkSpaceMenu ? 'create-wspace-menu' : undefined
+                    }
+                    aria-expanded={openedWorkSpaceMenu ? 'true' : undefined}
+                    aria-haspopup="menu"
+                    data-tid="openedWorkSpaceMenuButtonTID"
+                    onClick={handleToggleWorkSpaces}
+                    endIcon={<ArrowDropDownIcon />}
+                    sx={{ borderRadius: 'unset' }}
+                  >
+                    <Box
+                      sx={{
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        maxWidth: 100,
+                      }}
+                    >
+                      {workSpacesContext?.getCurrentWorkSpace()?.shortName ||
+                        t('core:all')}
+                    </Box>
+                  </TsButton>
+                )}
+                <TsButton
+                  tooltip={t('core:openSharingLink')}
+                  data-tid="openLinkNavigationTID"
+                  onClick={openLinkDialog}
+                  sx={{
+                    borderRadius: 'unset',
+                    borderTopRightRadius: AppConfig.defaultCSSRadius,
+                    borderBottomRightRadius: AppConfig.defaultCSSRadius,
+                  }}
+                >
+                  <OpenLinkIcon />
+                </TsButton>
+              </ButtonGroup>
+              {currentUser ? (
+                <>
+                  <TsIconButton
+                    tooltip={t('core:userAccount')}
+                    data-tid="accountCircleIconTID"
+                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                      setAnchorUser(event.currentTarget)
+                    }
+                    title={t('core:userAccount')}
+                  >
+                    <AccountIcon />
+                  </TsIconButton>
+                  <Popover
+                    open={Boolean(anchorUser)}
+                    anchorEl={anchorUser}
+                    onClose={() => setAnchorUser(null)}
+                    anchorOrigin={{
+                      vertical: 'bottom',
+                      horizontal: 'center',
+                    }}
+                    transformOrigin={{
+                      vertical: 'bottom',
+                      horizontal: 'center',
+                    }}
+                  >
+                    <UserDetailsPopover onClose={() => setAnchorUser(null)} />
+                  </Popover>
+                </>
+              ) : (
+                <TsIconButton
+                  tooltip={t('core:switchTheme')}
+                  data-tid="switchTheme"
+                  onClick={switchTheme}
+                >
+                  <ThemingIcon />
+                </TsIconButton>
+              )}
+            </Box>
+          </Box>
+          {workSpaces && workSpaces.length > 0 && (
+            <ClickAwayListener onClickAway={handleCloseWSpace}>
+              <Popper
+                anchorEl={anchorWSpaceRef.current}
+                sx={{ zIndex: 1 }}
+                open={openedWorkSpaceMenu}
+                role={undefined}
+                transition
+                disablePortal
+              >
+                {({ TransitionProps, placement }) => (
+                  <Grow
+                    {...TransitionProps}
+                    style={{
+                      transformOrigin:
+                        placement === 'bottom' ? 'center top' : 'center bottom',
+                    }}
+                  >
+                    <Paper>
+                      <TsMenuList id="create-file-menu" autoFocusItem>
+                        {workspaceMenuItems}
+                      </TsMenuList>
+                    </Paper>
+                  </Grow>
+                )}
+              </Popper>
+            </ClickAwayListener>
+          )}
+          <ClickAwayListener onClickAway={handleClose}>
+            <Popper
+              sx={{ zIndex: 1 }}
+              open={openedCreateMenu}
+              anchorEl={anchorRef.current}
+              role={undefined}
+              transition
+              disablePortal
+            >
+              {({ TransitionProps, placement }) => (
+                <Grow
+                  {...TransitionProps}
+                  style={{
+                    transformOrigin:
+                      placement === 'bottom' ? 'center top' : 'center bottom',
+                  }}
+                >
+                  <Paper>
+                    <TsMenuList id="nav-create-menu" autoFocusItem>
+                      <MenuItem
+                        key="navCreateNewTextFile"
+                        data-tid="navCreateNewTextFileTID"
+                        onClick={() => {
+                          openNewFileDialog('txt');
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <NewFileIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:createTextFile')} />
+                      </MenuItem>
+                      <MenuItem
+                        key="navCreateNewMarkdownFile"
+                        data-tid="navCreateNewMarkdownFileTID"
+                        onClick={() => {
+                          openNewFileDialog('md');
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <MarkdownFileIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:createMarkdown')} />
+                        <InfoIcon tooltip={t('core:createMarkdownTitle')} />
+                      </MenuItem>
+                      <MenuItem
+                        key="navCreateHTMLTextFile"
+                        data-tid="navCreateHTMLTextFileTID"
+                        onClick={() => {
+                          openNewFileDialog('html');
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <HTMLFileIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:createRichTextFile')} />
+                        <InfoIcon tooltip={t('core:createNoteTitle')} />
+                      </MenuItem>
+                      <MenuItem
+                        key="navCreateNewLinkFile"
+                        data-tid="navCreateNewLinkFileTID"
+                        onClick={() => {
+                          openNewFileDialog('url');
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <LinkFileIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:createLinkFile')} />
+                      </MenuItem>
+                      {(Pro || !hideProFeatures) && (
+                        <MenuItem
+                          key="navCreateNewAudio"
+                          data-tid="navCreateNewAudioTID"
+                          disabled={!Pro}
+                          onClick={() => {
+                            openNewAudioDialog();
+                            setOpenCreateMenu(false);
+                            hideDrawer?.();
+                          }}
+                        >
+                          <ListItemIcon>
+                            <AudioFileIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <>
+                                {t('core:newAudioRecording')}
+                                {!Pro && <ProLabel />}
+                              </>
+                            }
+                          />
+                        </MenuItem>
+                      )}
+                      {(Pro || !hideProFeatures) && (
+                        <MenuItem
+                          key="navCreateFileFromTemplate"
+                          data-tid="navCreateFileFromTemplateTID"
+                          disabled={!Pro}
+                          onClick={() => {
+                            openNewFileDialog();
+                            setOpenCreateMenu(false);
+                            hideDrawer?.();
+                          }}
+                        >
+                          <ListItemIcon>
+                            <TemplateFileIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <>
+                                {t('core:createNewFromTemplate')}
+                                {!Pro && <ProLabel />}
+                              </>
+                            }
+                          />
+                        </MenuItem>
+                      )}
+                      <Divider />
+                      <MenuItem
+                        key="addUploadFiles"
+                        data-tid="addUploadFilesTID"
+                        onClick={() => {
+                          openFileUpload(currentDirectoryPath);
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <AddExistingFileIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:addFiles')} />
+                      </MenuItem>
+                      {/* Capacitor Android only: its WebView file chooser can't
+                        open the camera, so offer a dedicated trigger for the
+                        native camera plugin. On iOS the file chooser behind
+                        "Add files" already includes "Take Photo", and the
+                        camera plugin's native presentation leaves the
+                        WKWebView shifted after dismissal. */}
+                      {AppConfig.isCapacitorAndroid && (
+                        <MenuItem
+                          key="cameraTakePicture"
+                          data-tid="cameraTakePictureTID"
+                          onClick={() => {
+                            openCameraCapture(currentDirectoryPath);
+                            setOpenCreateMenu(false);
+                            hideDrawer?.();
+                          }}
+                        >
+                          <ListItemIcon>
+                            <TakePictureIcon />
+                          </ListItemIcon>
+                          <ListItemText primary={t('core:cameraTakePicture')} />
+                        </MenuItem>
+                      )}
+                      {/* Web can't bypass browser CORS/CSP — only show the URL
+                        download where it saves into the location. Pro feature:
+                        enabled on Pro (BETA), disabled with a PRO badge on Lite,
+                        hidden on Lite when Pro teasers are hidden. */}
+                      {(AppConfig.isElectron || AppConfig.isNativeMobile) &&
+                        (Pro || !hideProFeatures) && (
+                          <MenuItem
+                            key="newFromDownloadURL"
+                            data-tid="newFromDownloadURLTID"
+                            disabled={!Pro}
+                            onClick={() => {
+                              openDownloadUrl();
+                              setOpenCreateMenu(false);
+                              hideDrawer?.();
+                            }}
+                          >
+                            <ListItemIcon>
+                              <DownloadIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={
+                                <>
+                                  {t('core:newFromDownloadURL')}
+                                  {Pro ? <BetaLabel /> : <ProLabel />}
+                                </>
+                              }
+                            />
+                          </MenuItem>
+                        )}
+                      <Divider />
+                      <MenuItem
+                        key="createNewFolder"
+                        data-tid="createNewFolderTID"
+                        onClick={() => {
+                          openCreateDirectoryDialog();
+                          setOpenCreateMenu(false);
+                          hideDrawer?.();
+                        }}
+                      >
+                        <ListItemIcon>
+                          <NewFolderIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={t('core:createDirectory')} />
+                      </MenuItem>
+                      <Divider />
+                      {!AppConfig.ExtLocationsReadOnly && (
+                        <MenuItem
+                          key="createNewLocation"
+                          data-tid="createNewLocationTID"
+                          onClick={() => {
+                            setSelectedLocation(undefined);
+                            openCreateEditLocationDialog();
+                            setOpenCreateMenu(false);
+                            hideDrawer?.();
+                          }}
+                        >
+                          <ListItemIcon>
+                            <LocalLocationIcon />
+                          </ListItemIcon>
+                          <ListItemText primary={t('core:createLocation')} />
+                        </MenuItem>
+                      )}
+                      {!AppConfig.isNativeMobile && (
+                        <MenuItem
+                          key="createWindow"
+                          data-tid="createWindowTID"
+                          onClick={() => {
+                            createNewInstance();
+                            setOpenCreateMenu(false);
+                          }}
+                        >
+                          <ListItemIcon>
+                            <OpenNewWindowIcon />
+                          </ListItemIcon>
+                          <ListItemText primary={t('core:newWindow')} />
+                        </MenuItem>
+                      )}
+                    </TsMenuList>
+                  </Paper>
+                </Grow>
+              )}
+            </Popper>
+          </ClickAwayListener>
+          <LocationManager
+            show={currentOpenedPanel === 'locationManagerPanel'}
+          />
+          {currentOpenedPanel === 'tagLibraryPanel' && <TagLibrary />}
+          {currentOpenedPanel === 'searchPanel' && <StoredSearches />}
+          {currentOpenedPanel === 'helpFeedbackPanel' && <HelpFeedbackPanel />}
+        </Box>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 0,
+            backgroundColor: navBackground,
+            paddingTop: '5px',
+            // Keep the bottom nav clear of the OS gesture bar / home indicator on
+            // iOS & Android; --sab falls back to env(safe-area-inset-bottom), and
+            // the 8px floor gives a small touch margin on web/desktop where the
+            // inset is 0.
+            paddingBottom:
+              'max(9px, var(--sab, env(safe-area-inset-bottom, 0px)))',
+          }}
+        >
+          {showProTeaser && (
+            <ProTeaser setShowTeaserBanner={setShowTeaserBanner} />
+          )}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignSelf: 'center',
+              backgroundColor: navBackground,
+            }}
+          >
+            <TsToolbarButton
+              title={t('core:locationManager')}
+              tooltip={t('core:locationManager')}
+              keyBinding={keyBindings['showLocationManager']}
+              onClick={() => showPanel('locationManagerPanel')}
+              sx={{
+                backgroundColor:
+                  currentOpenedPanel === 'locationManagerPanel'
+                    ? theme.palette.primary.light
+                    : navBackground,
+              }}
+              data-tid="locationManager"
+            >
+              <LocalLocationIcon />
+            </TsToolbarButton>
+            <TsToolbarButton
+              data-tid="tagLibrary"
+              title={t('core:tags')}
+              tooltip={t('core:tagLibrary')}
+              keyBinding={keyBindings['showTagLibrary']}
+              onClick={() => showPanel('tagLibraryPanel')}
+              sx={{
+                backgroundColor:
+                  currentOpenedPanel === 'tagLibraryPanel'
+                    ? theme.palette.primary.light
+                    : navBackground,
+              }}
+            >
+              <TagLibraryIcon />
+            </TsToolbarButton>
+            <TsToolbarButton
+              title={t('core:quickAccess')}
+              tooltip={t('core:quickAccess')}
+              data-tid="quickAccessButton"
+              onClick={() => showPanel('searchPanel')}
+              sx={{
+                backgroundColor:
+                  currentOpenedPanel === 'searchPanel'
+                    ? theme.palette.primary.light
+                    : navBackground,
+              }}
+            >
+              <RecentThingsIcon />
+            </TsToolbarButton>
+            <TsToolbarButton
+              tooltip={t('core:helpFeedback')}
+              title={t('core:help')}
+              data-tid="helpFeedback"
+              onClick={() => showPanel('helpFeedbackPanel')}
+              sx={{
+                backgroundColor:
+                  currentOpenedPanel === 'helpFeedbackPanel'
+                    ? theme.palette.primary.light
+                    : navBackground,
+              }}
+            >
+              <HelpIcon />
+            </TsToolbarButton>
+            <TsToolbarButton
+              tooltip={t('core:settings')}
+              id="verticalNavButton"
+              data-tid="settings"
+              onClick={() => openSettingsDialog()}
+              sx={{
+                marginLeft: '10px',
+                backgroundColor: navBackground,
+              }}
+              title={t('core:settings')}
+            >
+              <SettingsIcon />
+            </TsToolbarButton>
+          </Box>
+        </Box>
+      </Box>
+    </ThemeProvider>
+  );
+}
+
+export default MobileNavigation;

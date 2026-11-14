@@ -1,0 +1,175 @@
+import AppConfig from '-/AppConfig';
+import { Crepe } from '@milkdown/crepe';
+import { Ctx } from '@milkdown/ctx';
+import { editorViewCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
+import { trailing } from '@milkdown/kit/plugin/trailing';
+import { remarkPreserveEmptyLinePlugin } from '@milkdown/preset-commonmark';
+
+/**
+ * Resolves a relative path against a base folder path.
+ * Handles '../' and './' traversal.
+ */
+function resolveRelativePath(
+  baseFolderPath: string,
+  relativePath: string,
+): string {
+  const separator = baseFolderPath.includes('\\') ? '\\' : '/';
+  const baseParts = baseFolderPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean);
+  const relParts = relativePath.replace(/\\/g, '/').split('/');
+
+  for (const part of relParts) {
+    if (part === '..') {
+      baseParts.pop();
+    } else if (part !== '.') {
+      baseParts.push(part);
+    }
+  }
+
+  const joined = baseParts.join(separator);
+  return baseFolderPath.startsWith('/') ? '/' + joined : joined;
+}
+
+export function createCrepeEditor(
+  root: HTMLElement,
+  defaultContent: string,
+  defaultEditMode: boolean,
+  features?: {}, //[Crepe.Feature.CodeMirror]: false,
+  placeholder?: string,
+  currentFolder?: string,
+  openLink?: (url: string, options?) => void,
+  onChange?: (markdown: string, prevMarkdown: string) => void,
+  onFocus?: () => void,
+  currentLocationId?: string,
+): Crepe {
+  const crepe = new Crepe({
+    root,
+    defaultValue: defaultContent || '',
+    features: features,
+    featureConfigs: {
+      [Crepe.Feature.Placeholder]: {
+        text:
+          placeholder === undefined
+            ? 'Type / to use slash command'
+            : placeholder,
+      },
+      [Crepe.Feature.ImageBlock]: {
+        proxyDomURL: (originalURL: string) => {
+          if (originalURL.length === 0) {
+            return '';
+          }
+          if (
+            currentFolder &&
+            !originalURL.startsWith('data:') &&
+            !originalURL.startsWith('blob') &&
+            !originalURL.startsWith('http')
+          ) {
+            return (
+              AppConfig.mediaProtocol + `:///${currentFolder}/${originalURL}`
+            );
+          }
+          return originalURL;
+        },
+        onUpload: async (file: File) => {
+          const base64String = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          return base64String;
+        },
+      },
+    },
+  });
+  crepe.editor.remove(remarkPreserveEmptyLinePlugin);
+  crepe.editor.remove(trailing);
+  crepe.editor.config((ctx: Ctx) => {
+    ctx.update(editorViewOptionsCtx, (prev) => ({
+      ...prev,
+      attributes: {
+        class: 'mx-auto full-height',
+      },
+      handleDOMEvents: {
+        click: (view, event) => {
+          if (!view.editable) {
+            const target = event.target as HTMLElement;
+            if (target.tagName === 'A') {
+              const href = (target as HTMLAnchorElement).getAttribute('href');
+              if (href && !href.startsWith('#')) {
+                event.preventDefault();
+                let resolvedHref = href;
+                if (
+                  currentFolder &&
+                  !href.includes('://') &&
+                  !href.startsWith('/')
+                ) {
+                  // Markdown link URLs are URL-encoded so they roundtrip
+                  // safely through the markdown serializer (spaces, brackets,
+                  // parens). Decode before resolving against the filesystem
+                  // path so segments match the real entry names.
+                  let decodedHref = href;
+                  try {
+                    decodedHref = decodeURI(href);
+                  } catch {
+                    // leave as-is if malformed
+                  }
+                  const absolutePath = resolveRelativePath(
+                    currentFolder,
+                    decodedHref,
+                  );
+                  // Include the current location id so openLink knows where
+                  // to look up the entry — otherwise it falls back to the
+                  // "first RW location" which is often wrong in multi-
+                  // location setups.
+                  resolvedHref =
+                    'ts://?cmdopen=' +
+                    encodeURIComponent(absolutePath) +
+                    (currentLocationId
+                      ? '&tslid=' + encodeURIComponent(currentLocationId)
+                      : '');
+                }
+                openLink(resolvedHref, { fullWidth: false });
+                return true;
+              }
+            }
+          }
+          return false;
+        },
+      },
+    }));
+  });
+
+  if (onChange || onFocus) {
+    crepe.on((listener) => {
+      listener.markdownUpdated((_, markdown: string, prevMarkdown: string) => {
+        const view = crepe.editor.ctx.get(editorViewCtx);
+        if (view && view.hasFocus()) {
+          // console.log('Change listener:' + markdown);
+          if (onChange) {
+            onChange(markdown, prevMarkdown);
+          }
+        }
+      });
+      listener.focus(() => {
+        if (onFocus) {
+          onFocus();
+        }
+      });
+    });
+  }
+  crepe.setReadonly(!defaultEditMode);
+
+  return crepe;
+}
+
+/*function getHref(ctx, view: EditorView, pos: number): string {
+  const found = view.state.tr.doc.nodeAt(pos);
+  if (found && found.marks.length > 0) {
+    const mark = found.marks.find(({ type }) => type === linkSchema.type(ctx));
+    return mark?.attrs.href;
+  }
+  return undefined;
+}*/

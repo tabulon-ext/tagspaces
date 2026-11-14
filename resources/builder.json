@@ -1,45 +1,111 @@
 {
   "appId": "org.tagspaces.desktopapp",
+  "electronFuses": {
+    "runAsNode": false,
+    "resetAdHocDarwinSignature": true
+  },
+  "afterPack": "scripts/swap-ffmpeg.js",
   "asar": true,
+  "asarUnpack": ["**\\*.{node,dll}", "**/node_modules/wasm-vips/**/*"],
   "files": [
     "dist/",
     "node_modules/",
-    "app.html",
-    "splash.html",
-    "main.prod.js",
-    "main.prod.js.map",
-    "third-party.txt",
-    "LICENSE.txt",
-    "version.json",
-    "package.json"
+    "!node_modules/@napi-rs/**",
+    "package.json",
+    "extconfig.js"
   ],
-  "copyright": "Copyright © 2021 TagSpaces UG (haftungsbeschraenkt)",
+  "fileAssociations": [
+    {
+      "ext": "md",
+      "name": "Markdown File",
+      "role": "Editor"
+    },
+    {
+      "ext": "mdown",
+      "name": "Markdown File",
+      "role": "Editor"
+    },
+    {
+      "ext": "mmd",
+      "name": "Markdown Presentation File",
+      "role": "Editor"
+    },
+    {
+      "ext": "html",
+      "name": "HTML File",
+      "role": "Editor"
+    },
+    {
+      "ext": "txt",
+      "name": "Text File",
+      "role": "Editor"
+    },
+    {
+      "ext": "glb",
+      "name": "GLB File",
+      "role": "Viewer"
+    },
+    {
+      "ext": "url",
+      "name": "URL File",
+      "role": "Viewer"
+    }
+  ],
+  "copyright": "Copyright © 2026 TagSpaces GmbH",
   "artifactName": "${name}-${os}-${arch}-${version}.${ext}",
   "win": {
-    "target": [
-      "nsis",
-      // "portable",
-      "zip"
-    ],
-    "icon": "resources/icon.ico"
-  },
-  "mac": {
-    "target": ["zip", "dmg"],
-    "icon": "resources/icon.icns"
-  },
-  "linux": {
-    "target": ["deb", "tar.gz", "appImage"],
-    "category": "Office",
-    "icon": "resources/icon.icns"
+    "target": ["nsis", "zip"],
+    "icon": "assets/icon.ico"
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
-    "license": "app/LICENSE.txt",
     "include": "resources/installer.nsh"
   },
+  "mac": {
+    "target": ["pkg", "dmg"],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "assets/entitlements.mac.plist",
+    "entitlementsInherit": "assets/entitlements.mac.plist",
+    "icon": "assets/iconmac.png"
+  },
+  "dmg": {
+    "sign": false
+  },
+  "pkg": {
+    "license": "resources/license_en.txt"
+  },
+  "linux": {
+    "target": [
+      { "target": "deb", "arch": ["x64", "arm64"] },
+      { "target": "tar.gz", "arch": ["x64", "arm64"] },
+      { "target": "appImage", "arch": ["x64"] }
+    ],
+    "category": "Office",
+    "icon": "assets/icon.icns"
+  },
+  "deb": {
+    "depends": [
+      "libgtk-3-0 | libgtk-4-1",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libsecret-1-0",
+      "libuuid1"
+    ]
+  },
+  "appImage": {
+    "license": "resources/license_en.txt"
+  },
+
   "directories": {
-    "buildResources": "resources",
+    "app": "release/app",
+    "buildResources": "assets",
     "output": "../builds"
-  }
+  },
+  "extraResources": ["./assets/**"]
 }

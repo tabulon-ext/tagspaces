@@ -1,7 +1,28 @@
-/* Copyright (c) 2020-present - TagSpaces UG (Haftungsbeschraenkt). All rights reserved. */
+/* Copyright (c) 2020-present - TagSpaces GmbH. All rights reserved. */
+import { expect } from '@playwright/test';
+import {
+  clickOn,
+  expectElementExist,
+  getElementText,
+  isDisplayed,
+  removeTagFromTagMenu,
+  setInputValue
+} from './general.helpers';
 
-import { addInputKeys, removeTagFromTagMenu } from './general.helpers';
-import { getPropertiesTags } from './location.helpers';
+export async function getPropertiesTags() {
+  const arrTags = [];
+  const tags = await global.client.$$(
+    '[data-tid=PropertiesTagsSelectTID] div div div',
+  );
+  for (let i = 0; i < tags.length; i++) {
+    const dataTid = await tags[i].getAttribute('data-tid');
+    if (dataTid && dataTid.startsWith('tagContainer_')) {
+      const label = await tags[i].$('button span');
+      arrTags.push(await getElementText(label));
+    }
+  }
+  return arrTags;
+}
 
 /**
  * Add and then Remove tags from file/folder Properties (open Properties first)
@@ -12,18 +33,30 @@ import { getPropertiesTags } from './location.helpers';
  */
 export async function AddRemovePropertiesTags(
   tagNames = ['test-props-tag'], // TODO fix camelCase tag name
-  options = { add: true, remove: true }
+  options = { add: true, remove: true, expectProp: false },
 ) {
   if (options.add) {
     for (let i = 0; i < tagNames.length; i++) {
       const tagName = tagNames[i];
       const propsTags = await getPropertiesTags();
       expect(propsTags.includes(tagName)).toBe(false);
-      await addInputKeys('PropertiesTagsSelectTID', tagName);
-      await global.client.keys('Enter');
-      await global.client.pause(500);
-      const propsNewTags = await getPropertiesTags();
-      expect(propsNewTags.includes(tagName)).toBe(true);
+      await setInputValue('[data-tid=PropertiesTagsSelectTID] input', tagName);
+      await global.client.keyboard.press('Enter');
+      await expectElementExist(
+        '[data-tid=tagContainer_' + tagName + ']',
+        true,
+        8000,
+        '[data-tid=perspectiveGridFileTable]',
+      );
+      if (options.expectProp) {
+        // todo selecting by parent PropertiesTagsSelectTID not work for web..
+        await expectElementExist(
+          '[data-tid=tagContainer_' + tagName + ']',
+          true,
+          8000,
+          '[data-tid=PropertiesTagsSelectTID]',
+        );
+      }
     }
   }
 
@@ -31,22 +64,22 @@ export async function AddRemovePropertiesTags(
     for (let i = 0; i < tagNames.length; i++) {
       const tagName = tagNames[i];
       await removeTagFromTagMenu(tagName);
-      await global.client.pause(800);
-      const propsNewTags = await getPropertiesTags();
-      expect(propsNewTags.includes(tagName)).toBe(false);
+      await expectElementExist(
+        '[data-tid=tagContainer_' + tagName + ']',
+        false,
+        8000,
+        '[data-tid=perspectiveGridFileTable]',
+      );
     }
   }
 }
 
 export async function getPropertiesFileName() {
-  /* const fileNameProperties = await global.client.$('#descriptionArea');
-  await fileNameProperties.waitForDisplayed({ timeout: 5000 });
-  await fileNameProperties.click(); */
-
-  const propsFileNameInput = await global.client.$(
-    '[data-tid=fileNameProperties] input'
-  );
-  await propsFileNameInput.waitForDisplayed({ timeout: 5000 });
-  const fileName = await propsFileNameInput.getValue();
-  return fileName.replace(/ *\[[^\]]*]/, '');
+  let fileName;
+  const selectorFileProps = '[data-tid=fileNameProperties] input';
+  if (!(await isDisplayed(selectorFileProps, true, 3000))) {
+    await clickOn('[data-tid=detailsTabTID]');
+  }
+  fileName = await global.client.inputValue(selectorFileProps); // https://github.com/microsoft/playwright/issues/3265
+  return fileName ? fileName.replace(/ *\[[^\]]*]/, '') : undefined;
 }

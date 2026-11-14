@@ -1,14 +1,28 @@
-import { globalSetup } from './setup-functions';
-
-module.exports = async function() {
-  await globalSetup();
-
+module.exports = async function (config) {
   // copy extconfig
-  const fse = require('fs-extra');
+  const fs = require('fs');
   const path = require('path');
 
-  let srcDir = path.join(__dirname, '..', 'scripts', 'extconfig.js');
-  let destDir = path.join(__dirname, '..', 'app', 'extconfig.js');
-
-  fse.copySync(srcDir, destDir);
+  // console.log(JSON.stringify(config));
+  let srcDir = path.join(
+    __dirname,
+    '..',
+    'scripts',
+    config.configFile.endsWith('playwright.config.web.js')
+      ? 'extconfig-s3-location.js'
+      : 'extconfig-with-welcome.js',
+  );
+  let destDir = path.join(
+    __dirname,
+    '..',
+    config.configFile.endsWith('playwright.config.web.js')
+      ? 'web'
+      : 'release/app/dist/renderer',
+    'extconfig.js',
+  );
+  try {
+    fs.copyFileSync(srcDir, destDir);
+  } catch (err) {
+    console.error('Error copying file:', err);
+  }
 };

@@ -1,204 +1,177 @@
-![tagspaces logo](https://raw.github.com/tagspaces/tagspaces/master/app/assets/icons/96x96.png)
+![TagSpaces Logo](https://www.tagspaces.org/img/tagspaces-logo.svg)
 
-<!-- ![tagspaces@travis](https://travis-ci.org/tagspaces/tagspaces.svg?branch=master) -->
+[![GitHub All Releases](https://img.shields.io/github/downloads/tagspaces/tagspaces/total.svg)](https://github.com/tagspaces/tagspaces/releases)
 
-[![Join the chat at https://gitter.im/tagspaces/tagspaces](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tagspaces/tagspaces?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Github All Releases](https://img.shields.io/github/downloads/tagspaces/tagspaces/total.svg)]()
+# TagSpaces
 
-**TagSpaces** is a free, non-locking, open source application for organizing and managing your local files with the help of tags. It features note taking and some to-do app capabilities. The application is available for Windows, Linux, Mac OS and Android. We provide a web clipper extension for Firefox and Chrome for easy collecting of online content as local files.
+**TagSpaces** is a free and open-source platform for organizing, tagging, and managing your local files. It runs completely offline, with no need for cloud services, internet connection, or vendor lock-in. Available for **Windows**, **Linux**, and **macOS**, it also includes a [browser extension](https://github.com/tagspaces/browser-extensions) (Web Clipper) for Firefox, Edge, and Chrome to capture online content as local files.
 
-![TagSpaces Start Screen](https://raw.githubusercontent.com/tagspaces/documentation/master/static/media/v3/tagspaces-v3-themes.jpg)
+![TagSpaces with the Markdown Editor](https://www.tagspaces.org/content/v6/tagspaces-lite-demo.avif)
 
-More information about can be found from the following sources:
+## 🌐 Learn More
 
-- [Website: tagspaces.org](https://www.tagspaces.org/) - official web site of the project.
-- [Blog](https://www.tagspaces.org/blog/) for news about TagSpaces
-- [Documentation](https://docs.tagspaces.org/) for our latest generated documentation
-- [Video Introduction](https://www.youtube.com/embed/CJ2hYU6U-C8) - This is a short video presenting the main concepts of the application. It is made from a pretty old application version but it is still valid for the most of the use cases.
-- [Issues Tracker](https://github.com/tagspaces/tagspaces/issues) for developer support requests
+- 🌍 [Website](https://www.tagspaces.org/)
+- 📰 [Blog](https://www.tagspaces.org/blog/)
+- 📚 [Documentation](https://docs.tagspaces.org/)
+- 💬 [Community Forum](https://tagspaces.discourse.group/)
+- 🐛 [GitHub Issues](https://github.com/tagspaces/tagspaces/issues)
 
-<!-- To get updates you can:
-- Subscribe to GitHub updates by clicking the "watch" button up the top right of this page.
-- Subscribe to RSS feed updates for the [master branch](https://github.com/tagspaces/tagspaces/commits/master.atom) -->
+---
 
-## Downloads
+## 📦 Downloads
 
-You can find the latest release of TagSpaces in the Github [release section](https://github.com/tagspaces/tagspaces/releases/)
+Grab the latest release from the [GitHub Releases Page](https://github.com/tagspaces/tagspaces/releases).  
+Check out the full [changelog](https://www.tagspaces.org/whatsnew/) for recent updates.
 
-A full list of the changes is available on the [changelog](CHANGELOG.md)
+---
 
-## Main Features
+## 🚀 Features at a Glance
 
-- **File and folder management** - TagSpaces provides a convenient user interface for browsing, viewing and man files and folders.
-- **File tagging** - The application supports two ways for tagging files. The default one embeds the tags directly in the name of the file, the other one uses a so called sidecar files for persisting the tags.
-- **Searching** - The search functionality supports fussy functionality and can filter your locations for files and folders containing one or more tags
-- **Browser for local content** - TagSpaces can be used just as browser for your local photos or navigation thought your local ebook library
-- **Media player** - It supports playing for common audio and video files types and has integrated basic media player functionalities.
-- **No-Cloud:** TagSpaces is running completely offline and serverless on your laptop, desktop or tablet and does not require an internet connection and any kind of online registration or service provider.
-- **Note Taking** - you can create and edit notes in plain text, markdown and html file formats
-- **To-Do Management** - with the help of the build in HTML editor you are able to create simple todo lists in every HTML file.
-- **Cross-platform:** TagSpaces runs on Windows, Linux, Mac and Android
-- **Web Clipper** for saving web pages and screenshots from your browsers is also available as extension for [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tagspaces/) and [Chrome](https://chrome.google.com/webstore/detail/tagspaces-web-clipper/ldalmgifdlgpiiadeccbcjojljeanhjk).
+- **File & Folder Management** – Browse, organize, and manage local files in a powerful interface.
+- **Tagging System** – Add tags directly into filenames or use sidecar files for metadata storage.
+- **Flexible Search** – Filter and find files by name or tags using fuzzy search.
+- **Offline First** – 100% offline, serverless, and privacy-focused.
+- **Cross-platform** – Runs seamlessly on Windows, Linux, and macOS.
+- **Note Taking** – Create notes in TXT, Markdown, or HTML.
+- **To-Do Support** – Manage task lists using the built-in HTML editor.
+- **Media Player** – Play common audio and video formats directly within the app.
+- **Web Clipper** – Save web pages or screenshots locally using our browser extension.
 
-## Infos for developers
+---
 
-The core of TagSpaces starting from version 3 is built with [react.js](https://reactjs.org/) and the great [material-ui](https://material-ui.com/) framework.
+## 👩‍💻 Developer Guide
 
-The native Windows, Linux and Mac OS versions of TagSpaces are built with [Electron](https://electron.atom.io/). Electron is an app runtime based on Chromium and node.js. In order to combine it with react we have used the [electron-react-boilerplate](https://github.com/chentsulin/electron-react-boilerplate).
+### 🛠️ Technologies
 
-### Repository Directory Structure
+- **Javascript Framework:** [React.js](https://reactjs.org/)
+- **User Interface Styling:** [MUI](https://mui.com/)
+- **Desktop App Framework:** [Electron](https://electron.atom.io/)
+- **Boilerplate:** [Electron React Boilerplate](https://github.com/chentsulin/electron-react-boilerplate)
 
-    ./app................ contains the application core
-    ./app/locales........ contains the language files needed for the application internationalization
-    ./app/node_modules... contains the TagSpaces extension modules
-    ./cordova............ contains the code needed for running the Android version
-    ./dll................ contains the files needed for live reload in development mode
-    ./flow-typed......... contains for the Flow static type checker
-    ./internals.......... contains files needed for supporting Flow and Eslint
-    ./node_modules....... after yarn install, you will find here the external dependencies of the application
-    ./resources.......... contains images and other files needed for the application building
-    ./scripts............ contains js script needed for the yarn/npm tasks
+### 📁 Project Structure
 
-### How to run TagSpaces from the source code?
+```text
+src/
+  renderer/         # Core application logic
+  main/             # Electron main process
+  locales/          # Language translation files
+  node_modules/     # TagSpaces extension modules
 
-In order to run TagSpaces on your Windows, Mac OS or Linux from the source code published here, you will need the following prerequisites:
+capacitor/          # Mobile (Android/iOS) build
+dll/                # Live reload support for development
+docker/             # Docker container setup
+resources/          # Images and build resources
+scripts/            # NPM task-related scripts
+test/               # Unit and E2E tests
+web/                # Assets for web version
+```
 
-- [node.js](https://nodejs.org/)
-- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com), currently we prefer yarn
-- [git](http://git-scm.org/)
+### ▶️ Running from Source
 
-Get the TagSpaces source code by cloning its repository:
+#### Prerequisites
 
-    $ git clone https://github.com/tagspaces/tagspaces.git
+Install the following tools:
 
-Go to the folder where the code was cloned and select the branch you want to test. Use the the **master** branch for the last officially released version or the branch **develop** for a kind of a nightly build, containing the changes we are preparing for the next release of the application.
+- [Node.js](https://nodejs.org/)
+- [npm](https://www.npmjs.com/)
+- [Git](http://git-scm.org/)
 
-Switch to folder where you have cloned the repository:
+#### Setup Steps
 
-    $ cd tagspaces
+    git clone https://github.com/tagspaces/tagspaces.git
+    cd tagspaces
+    git checkout develop  # or 'master' for stable release
+    npm install
 
-Change to the branch with the name **develop**:
+#### Local Worker Process
 
-    $ git checkout develop
+The desktop version of the application runs a separate worker process, responsible for search index creation and for generating thumbnails for most image formats.
 
-and install the project dependencies:
+No setup is needed. The worker is started as an Electron `utilityProcess` and the application talks to it over that process's message port (see `src/main/wsClient.ts`), so it opens no network port and needs no key or `.env` file. Each running instance only ever talks to its own worker.
 
-    $ yarn install
+#### Build & Start
 
-**Note:** If you experience any errors with the above command, please try this command first before filing a bug report:
+    npm run build
+    npm run start
 
-    $ yarn install --network-timeout 1000000
+#### Start in Development Mode
 
-The last command will automatically build the application with webpack. Now it is time to install all the TagSpaces extensions:
-
-    $ yarn install-ext
-
-Now you are ready and can build/start (bs) the application with:
-
-    $ yarn bs
-
-If you want to try the development mode, you can start it by:
-
-    $ yarn dev
+    npm run dev
 
 This will start a development server in background, which watches for changes in background and refreshes the application automatically once you have done some changes in the source code.
 
-### How to create the packages for Windows, Linux and Mac OS?
+### 🧪 Testing
 
-Building of the packages can be accomplished with the integrated yarn scripts:
+Run unit and integration tests:
 
-    $ yarn package-win
+```bash
+npm run test-unit
+npm run test-playwright
+npm run test-playwright-web
 
-    $ yarn package-linux
+```
 
-    $ yarn package-osx
+### 💻 Packaging the Desktop App
 
-For creating the packages for Windows, Linux and Mac OS respectively.
+Build native apps for each platform:
 
-### Developing extensions for TagSpaces
+```bash
+npm run package-win
+npm run package-linux
+npm run package-mac
+npm run package-mac-arm64
+```
 
-TagSpaces can be easily extended with the help of extensions. Currently we use the extensions for supporting the opening and editing of different file types in the application. More information about this topic can be found on the [extension page](https://www.tagspaces.org/extensions/) of our website.
+The commands will create packages for Windows, Linux, Mac OS and Mac OS with the M1 processor respectively.
 
-### How to start the WebDAV edition for testing?
+> ⚠️ Run npm run build before packaging.
 
-#### Development Server
+### 📱 Mobile Build (Capacitor)
 
-For developing purposes and local tests, the WebDAV version of the app can be started with the following yarn command:
+Build and run the Android or iOS app via Capacitor:
 
-    $ yarn run-web
+```bash
+npm run run-android-cap
+npm run run-ios-cap
+```
 
-This command will start a local node.js-WebDAV server on `http://127.0.0.1:8000`. Open your browser and enter the following URL:
+### 🌐 Web Version
 
-    http://127.0.0.1:8000/index.html
+Start the web version locally:
 
-You will be prompted for user credentials, which are username: `demo` and password: `demo` and now you should be able to work with the WebDAV version of TagSpaces.
+    npm run run-web
 
-#### Apache server with WedDAV module
+### 🔌 Extend with Custom Viewers & Editors
 
-In order to install TagSpaces on a Apache webserver you have to enable the **mod_dav** module, which comes with the Apache Server. More information about the installation and configuration can be found on [apache.org](https://httpd.apache.org/docs/current/mod/mod_dav.html). Please make sure that you have read and understood the potential security issues by running a WebDAV server on internet.
+TagSpaces supports extension modules for opening and editing different file types. Learn more on our [Extensions Page](https://www.tagspaces.org/extensions/).
 
-Here is a sample config file for Apache on Linux:
+### 🤝 Contributing
 
-    <VirtualHost *:80>
-    	ServerAdmin admin@somedomain.com
-    	ServerName somedomain.com
-    	DocumentRoot /var/www/somedomain.com/public_html
-    	ErrorLog ${APACHE_LOG_DIR}/error-somedomain.log
-    	CustomLog ${APACHE_LOG_DIR}/access-somedomain.log combined
-    </VirtualHost>
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md), and review and sign the [Contributor License Agreement (CLA)](https://www.tagspaces.org/content/tagspaces-cla-v2.pdf) before submitting PRs.
 
-    <Directory /var/www/somedomain.com/public_html>
-    	Options FollowSymLinks MultiViews
-    	AllowOverride None
-    	Order allow,deny
-    	allow from all
-    </Directory>
+## 🌍 Localization
 
-    Alias /files /var/yourFilesForWebDAV # this alias is useful if you do not want to store your files in the apache folder
+TagSpaces is available in over 20 languages. Help us translate the app by joining our team on [Transifex](https://explore.transifex.com/tagspaces/tagspaces/).
 
-    <Location /files>
-    	Options Indexes
-    	DAV On
-    	AuthType Basic # this way you can enable simple auth mechanism for protecting your files (basic auth should be used only over https with SSL/TSL)
-    	AuthName "webdav"
-    	AuthUserFile /somepath/webdav.password
-    	Require valid-user
-    </Location>
+## 💡 Ideas & Suggestions
 
-With some modification it can be also used for Apache on Windows, for a detailed manual refer to this article: [How to enable WebDAV in Apache Server 2.2.x – Windows](http://www.mkyong.com/apache/how-to-enable-webdav-in-apache-server-2-2-x-windows/)
+Have an idea or a feature request? Share it on our [community forum](https://tagspaces.discourse.group/c/feature-requests/6) and join the discussion.
 
-You can find more details about the Nextcloud integration here: [Self-hosted TagSpaces with WebDAV](https://docs.tagspaces.org/selfhosting.html).
+## 🐞 Support & Bug Reports
 
-## Contribute
+If you encounter a bug or need help, [open an issue](https://github.com/tagspaces/tagspaces/issues) on GitHub.
 
-TagSpaces is an open source software, and as such, the code is publicly available on GitHub, and forking is particularly recommended! Still, contribution must be done following some guidelines.
-Contributor License Agreement
+## ⚠️ Known Limitations
 
-The CLA is an agreement commonly used in major open source project, which aims at protecting all parties implied by a contribution: the contributor, the main code author, and above all, the community. The CLA model we have chosen basically tells the following: the contribution’s copyright is shared between the contributor and the main author. This means each party can do whatever she want in term of relicensing with this contributed piece of code. This is important, because, if in the future, the author wants to change the license in something more in favor of the community, a singular contributor cannot block the process.
+TagSpaces is not optimized for locations with more than 100,000 files.
 
-The Contributor License Agreement can be signed online on the following [CLA form](https://www.tagspaces.org/contribute/).
+## 📡 Feeds
 
-## Localisation
+- [Blog RSS Feed](http://www.tagspaces.org/blog/rss.xml)
+- [GitHub Commits (master)](https://github.com/tagspaces/tagspaces/commits/master.atom)
 
-TagSpaces is currently available in more than 20 languages. You can help the translation of this application in your language by joining the translation teams on [Transifex](https://www.transifex.com/tagspaces/tagspaces/).
+## 📄 License
 
-## Ideas and Suggestion
+TagSpaces is dual-licensed under the [AGPL](LICENSE.txt) (GNU Affero General Public License) v3 for open-source projects and a commercial license for vendors or resellers. Contact us if you're interested in using TagSpaces under different terms.
 
-If you have ideas or suggestions on how we can improve our application, you can check the following [Trello board](https://trello.com/b/TGeG5bi9/tagspaces-ideas). Here you will find numerous ideas already proposed by other users. If you want to post something new, please follow [this link](https://trello.com/c/mG97iOqo/19-how-to-use-this-board-and-add-new-ideas)
-
-## Support and Bugs
-
-If you are having troubles using TagSpaces or have found a bug please [open a ticket](https://github.com/tagspaces/tagspaces/issues) on GitHub.
-
-### Known issues
-
-- TagSpaces is not suitable for searching in locations containing more than 100000 files.
-- TagSpaces has performance issue displaying folders directly containing more than 1000 files. There is no such problem if the files are distributed in sub folders.
-
-## Feeds
-
-- Subscribe to RSS feed updates for the [tagspaces blog](http://tagspaces.org/blog/feed.xml)
-- Subscribe to RSS feed updates for the [master branch](https://github.com/tagspaces/tagspaces/commits/master.atom)
-
-## License
-
-TagSpaces' source code is licensed under the AGPL (GNU Affero General Public License) Version 3. The license text is available in the [LICENSE](LICENSE.txt) file.
+The TagSpaces Pro components (`tagspacespro/`) are proprietary and governed by a separate EULA. For the full picture — the open-source/proprietary boundary, how the combined builds are distributed, and third-party notices — see [LICENSING.md](LICENSING.md).

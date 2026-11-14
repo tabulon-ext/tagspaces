@@ -1,0 +1,102 @@
+/**
+ * TagSpaces - universal file and folder organizer
+ * Copyright (C) 2021-present TagSpaces GmbH
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License (version 3) as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+import AppConfig from '-/AppConfig';
+import { BetaLabel } from '-/components/HelperComponents';
+import TsSelect from '-/components/TsSelect';
+import { getVisiblePerspectives, PerspectiveIDs } from '-/perspectives';
+import { Pro } from '-/pro';
+import {
+  getEnabledPerspectives,
+  isDesktopMode,
+  isDevMode,
+  isHideProFeatures,
+} from '-/reducers/settings';
+import LayersClearIcon from '@mui/icons-material/LayersClear';
+import { Box } from '@mui/material';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
+import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
+
+interface Props {
+  defaultValue: string;
+  onChange: (event: any) => void;
+  fullWidth?: boolean;
+  testId: string;
+  label?: string;
+}
+
+function PerspectiveSelector(props: Props) {
+  const { defaultValue, onChange, testId, label, fullWidth = true } = props;
+  const devMode: boolean = useSelector(isDevMode);
+  const desktopMode = useSelector(isDesktopMode);
+  const hideProFeatures: boolean = useSelector(isHideProFeatures);
+  const enabledPerspectives: string[] = useSelector(getEnabledPerspectives);
+  const { t } = useTranslation();
+
+  const visiblePerspectives = getVisiblePerspectives(
+    enabledPerspectives,
+    hideProFeatures,
+    Pro,
+  );
+
+  const perspectiveSelectorMenuItems = [];
+  perspectiveSelectorMenuItems.push(
+    <MenuItem
+      key={PerspectiveIDs.UNSPECIFIED}
+      value={PerspectiveIDs.UNSPECIFIED}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <ListItemIcon>
+          <LayersClearIcon />
+        </ListItemIcon>
+        <ListItemText>{t('core:unspecified')}</ListItemText>
+      </Box>
+    </MenuItem>,
+  );
+
+  visiblePerspectives.forEach((perspective) => {
+    perspectiveSelectorMenuItems.push(
+      <MenuItem key={perspective.key} value={perspective.id}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <ListItemIcon>{perspective.icon}</ListItemIcon>
+          <ListItemText>
+            {perspective.title}&nbsp;
+            {perspective.beta && <BetaLabel />}
+          </ListItemText>
+        </Box>
+      </MenuItem>,
+    );
+  });
+
+  return (
+    <TsSelect
+      data-tid={testId}
+      defaultValue={defaultValue}
+      onChange={onChange}
+      label={label}
+      fullWidth={fullWidth}
+    >
+      {perspectiveSelectorMenuItems}
+    </TsSelect>
+  );
+}
+
+export default PerspectiveSelector;

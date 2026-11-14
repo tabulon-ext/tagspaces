@@ -1,0 +1,310 @@
+/**
+ * TagSpaces - universal file and folder organizer
+ * Copyright (C) 2017-present TagSpaces GmbH
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License (version 3) as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+import TagContainer from '-/components/TagContainer';
+import TsTextField from '-/components/TsTextField';
+import AiGenTagsButton from '-/components/chat/AiGenTagsButton';
+import EntryTagMenu from '-/components/menus/EntryTagMenu';
+import { useCurrentLocationContext } from '-/hooks/useCurrentLocationContext';
+import { useEditedTagLibraryContext } from '-/hooks/useEditedTagLibraryContext';
+import { Pro } from '-/pro';
+import {
+  getTagColor,
+  getTagTextColor,
+  isDesktopMode,
+  useOnlyTagsFromTagLibrary,
+} from '-/reducers/settings';
+import { getAllTags } from '-/services/taglibrary-utils';
+import { tagsValidation } from '-/services/utils-io';
+import { TS } from '-/tagspaces.namespace';
+import { Box, InputAdornment } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
+import FormHelperText from '@mui/material/FormHelperText';
+import { getUuid } from '@tagspaces/tagspaces-common/utils-io';
+import React, {
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
+
+interface Props {
+  dataTid?: string;
+  tags: TS.Tag[];
+  label?: string;
+  tagSearchType?: string;
+  handleChange?: (name: string, value: TS.Tag[], action: string) => void;
+  handleNewTags?: (newTags: TS.Tag[]) => void;
+  tagMode?: 'default' | 'display' | 'remove';
+  placeholderText?: string;
+  selectedEntry?: TS.FileSystemEntry;
+  autoFocus?: boolean;
+  generateButton?: boolean;
+}
+
+function TagsSelect(props: Props) {
+  const { t } = useTranslation();
+  const { currentLocation } = useCurrentLocationContext();
+  const { tagGroups } = useEditedTagLibraryContext();
+
+  const workSpacesContext = Pro?.contextProviders?.WorkSpacesContext
+    ? useContext<TS.WorkSpacesContextData>(
+        Pro.contextProviders.WorkSpacesContext,
+      )
+    : undefined;
+
+  const currentWorkSpace =
+    workSpacesContext && workSpacesContext.getCurrentWorkSpace
+      ? workSpacesContext?.getCurrentWorkSpace()
+      : undefined;
+
+  const desktopMode = useSelector(isDesktopMode);
+  const isUseOnlyTagsFromTagLibrary = useSelector(useOnlyTagsFromTagLibrary);
+  const [tagMenuAnchorEl, setTagMenuAnchorEl] = useState<null | HTMLElement>(
+    null,
+  );
+  const [selectedTag, setSelectedTag] = useState(undefined);
+  const tagsError = useRef<boolean>(false);
+  const allTags = useRef<Array<TS.Tag>>(
+    getAllTags(tagGroups, currentWorkSpace),
+  );
+
+  const defaultBackgroundColor = useSelector(getTagColor);
+  const defaultTextColor = useSelector(getTagTextColor);
+  const [ignored, forceUpdate] = useReducer((x: number) => x + 1, 0, undefined);
+  const {
+    placeholderText = '',
+    label,
+    selectedEntry,
+    autoFocus = false,
+    tags = [],
+    tagMode,
+    handleNewTags,
+    handleChange,
+    generateButton,
+    tagSearchType,
+    dataTid,
+  } = props;
+
+  useEffect(() => {
+    allTags.current = getAllTags(tagGroups, currentWorkSpace);
+    forceUpdate();
+  }, [currentWorkSpace, tagGroups]);
+
+  function handleTagChange(
+    event: Object,
+    selectedTags: Array<TS.Tag>,
+    reason: string,
+  ) {
+    tagsError.current = false;
+    if (!currentLocation?.isReadOnly) {
+      if (reason === 'blur') {
+        if (handleNewTags) {
+          handleNewTags(undefined);
+        }
+      } else {
+        if (handleNewTags) {
+          handleNewTags([]);
+        }
+        if (reason === 'selectOption') {
+          handleChange(tagSearchType, selectedTags, reason);
+        } else if (reason === 'createOption') {
+          if (selectedTags && selectedTags.length) {
+            const newTags = parseTagsInput(
+              '' + selectedTags[selectedTags.length - 1],
+            );
+            selectedTags.pop();
+            const allNewTags = [...selectedTags, ...newTags];
+            handleChange(tagSearchType, allNewTags, reason);
+          }
+        } else if (reason === 'remove-value') {
+          handleChange(tagSearchType, selectedTags, reason);
+        } else if (reason === 'clear') {
+          handleChange(tagSearchType, [], reason);
+        }
+      }
+    } else {
+      console.debug('tags disabled in read only mode!');
+    }
+  }
+
+  function parseTagsInput(tagsInput: string): TS.Tag[] {
+    let tags = tagsInput.split(' ').join(',').split(','); // handle spaces around commas
+    tags = [...new Set(tags)]; // remove duplicates
+
+    const newTags = [];
+    tags.map((tag) => {
+      if (tagsValidation(tag)) {
+        const existingTag = allTags.current.find(
+          (option) => option.title === tag,
+        );
+        const newTag: TS.Tag = existingTag ?? {
+          id: getUuid(),
+          title: '' + tag,
+          color: defaultBackgroundColor,
+          textcolor: defaultTextColor,
+        };
+        newTags.push(newTag);
+      } else {
+        tagsError.current = true;
+        forceUpdate();
+      }
+    });
+    return newTags;
+  }
+
+  function handleInputChange(event: any, value: string, reason: string) {
+    tagsError.current = false;
+    if (reason === 'input' && !isUseOnlyTagsFromTagLibrary) {
+      const newTags = parseTagsInput(value);
+      if (handleNewTags) {
+        handleNewTags(newTags);
+      }
+    }
+  }
+
+  const handleTagMenu = (event: React.ChangeEvent<HTMLInputElement>, tag) => {
+    setTagMenuAnchorEl(event.currentTarget);
+    setSelectedTag(tag);
+  };
+
+  const handleRemoveTag = (event, cTag: Array<TS.Tag>) => {
+    /* const reducedTags = [...tags];
+      for (let i = 0; i < reducedTags.length; i += 1) {
+        if (reducedTags[i].title === cTag.title) {
+          reducedTags.splice(i, 1);
+        }
+      } */
+    if (cTag.length > 0) {
+      handleTagChange(event, cTag, 'remove-value');
+    }
+  };
+
+  const handleCloseTagMenu = () => {
+    setTagMenuAnchorEl(null);
+  };
+
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      <Autocomplete
+        data-tid={dataTid}
+        disabled={currentLocation?.isReadOnly}
+        multiple
+        options={!currentLocation?.isReadOnly ? allTags.current : []}
+        getOptionLabel={(option: TS.Tag) => option.title}
+        freeSolo={!isUseOnlyTagsFromTagLibrary}
+        disableClearable={true}
+        autoSelect
+        autoComplete
+        size={desktopMode ? 'small' : 'medium'}
+        value={tags}
+        onChange={handleTagChange}
+        onInputChange={handleInputChange}
+        renderValue={(values) =>
+          (values as Array<TS.Tag | string>).flatMap((value, index) => {
+            // freeSolo + autoSelect can briefly surface the raw typed string
+            // here before onChange (createOption) replaces it with a Tag.
+            // Guard against rendering TagContainer with a string `tag`.
+            if (typeof value === 'string') return [];
+            return [
+              <TagContainer
+                key={(selectedEntry?.path ?? '') + value.id + index}
+                tag={value}
+                tagMode={tagMode}
+                handleTagMenu={handleTagMenu}
+                handleRemoveTag={handleRemoveTag}
+              />,
+            ];
+          })
+        }
+        renderOption={(props, option) => (
+          <Box component="li" {...props}>
+            <TagContainer tag={option} tagMode={tagMode} />
+          </Box>
+        )}
+        renderInput={(params) => {
+          // Backspace on an empty input removes the last selected tag.
+          // Wrap MUI's existing onKeyDown rather than replacing it so freeSolo
+          // Enter-to-commit still works. Pass the single tag to remove (not
+          // the new list) — 'remove-value' consumers like EntryProperties
+          // interpret the array as "tags to remove".
+          const existingOnKeyDown = params.slotProps.htmlInput.onKeyDown;
+          params.slotProps.htmlInput.onKeyDown = (event) => {
+            if (
+              event.key === 'Backspace' &&
+              (event.target as HTMLInputElement).value === '' &&
+              tags.length > 0
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              handleRemoveTag(event, [tags[tags.length - 1]]);
+              return;
+            }
+            if (existingOnKeyDown) {
+              existingOnKeyDown(event);
+            }
+          };
+          // Append the AI gen button to MUI's default endAdornment instead of
+          // replacing it — overriding slotProps wholesale would drop
+          // params.slotProps.htmlInput (which carries the onKeyDown that
+          // commits freeSolo values on Enter).
+          if (generateButton) {
+            params.slotProps.input.endAdornment = (
+              <>
+                {params.slotProps.input.endAdornment}
+                <InputAdornment position="end">
+                  <AiGenTagsButton variant="text" />
+                </InputAdornment>
+              </>
+            );
+          }
+          return (
+            <>
+              <TsTextField
+                {...params}
+                label={label}
+                placeholder={placeholderText}
+                autoFocus={autoFocus}
+                error={tagsError.current}
+                sx={{ marginTop: 0, marginBottom: 0, whiteSpace: 'nowrap' }}
+              />
+              {tagsError.current && (
+                <FormHelperText>{t('core:tagTitleHelper')}</FormHelperText>
+              )}
+            </>
+          );
+        }}
+      />
+      {selectedEntry && (
+        <EntryTagMenu
+          anchorEl={tagMenuAnchorEl}
+          open={Boolean(tagMenuAnchorEl)}
+          onClose={handleCloseTagMenu}
+          selectedTag={selectedTag}
+          currentEntry={selectedEntry}
+          removeTags={handleRemoveTag}
+        />
+      )}
+    </Box>
+  );
+}
+
+export default TagsSelect;

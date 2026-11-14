@@ -1,0 +1,5 @@
+{
+  "inputs": ["./package.json", "./release/app/package.json"],
+  "output": "./src/renderer/third-party.txt",
+  "overwrite": true,
+}

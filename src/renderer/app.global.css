@@ -1,0 +1,52 @@
+@import 'assets/loading.css';
+@import 'assets/scrollbars.css';
+@import 'assets/minireset.css';
+@import 'assets/fonts/roboto/index.css';
+@import '~leaflet/dist/leaflet.css';
+@import 'assets/milkdown.css';
+@import '~leaflet.markercluster/dist/MarkerCluster.css';
+@import '~leaflet.markercluster/dist/MarkerCluster.Default.css';
+@import 'swiper/css';
+@import 'swiper/css/navigation';
+@import 'rc-table/assets/index.css';
+
+/* Needed to disable border on focused HotKey element */
+div[tabindex='-1']:focus {
+  outline: 0;
+}
+
+html,
+body {
+  overscroll-behavior-x: none;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+#root {
+  height: 100%;
+}
+
+/* needed for crepe */
+.full-height {
+  height: 100%;
+}
+
+/* needed for crepe */
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media print {
+  html,
+  body {
+    height: auto;
+  }
+}

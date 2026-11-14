@@ -1,64 +1,70 @@
-name: manual workflow dispatch trigger
+name: Manual Workflow Dispatch Trigger
 on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'Command to execute e2e tests default: yarn test-e2e-electron-minio'
+        description: 'Command to execute e2e tests default: npm run test-playwright-web-headless'
         required: true
-        default: 'test-e2e-electron-minio'
+        default: 'test-playwright-web-headless'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   e2eTests:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checking out default branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
+          ref: develop
           submodules: true
       - name: Checkout TestData
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: tagspaces/testdata
           path: tests/testdata
-      - name: Checkout TagspacesPro
-        uses: actions/checkout@v2
+      - name: Configure NPM for TagSpaces Pro
+        uses: actions/setup-node@v4
         with:
-          repository: tagspaces/tagspacespro
-          token: ${{ secrets.CHECKOUT_TSPRO  }}
-          path: extensions/tagspacespro
-      - uses: actions/setup-node@v2-beta
-        with:
-          node-version: '12.x'
-      - name: Running yarn install, prettier and type checks
+          node-version: '22.x'
+          always-auth: true
+          registry-url: https://npm.pkg.github.com/
+          scope: '@tagspacespro'
+      - name: Running npm install, prettier and type checks
         run: |
-          yarn install --check-files --cache-folder .ycache
-          yarn prettier-check
-          yarn type-check
-      - name: Run Unit tests
-        run: yarn test-unit
-      - uses: suisei-cn/actions-download-file@v1
-        id: minio
-        name: Download the Minio.exe
+          npm install
+          npm run prepare-node
+          npm run prettier-check
+          npm run type-check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.TSPNPMINSTALL }}
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          url: 'https://dl.min.io/server/minio/release/windows-amd64/minio.exe'
-          target: tests/bin/
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Run Unit tests
+        run: npm run test-unit
+      - name: Cache S3Proxy JAR
+        id: cache-s3proxy
+        uses: actions/cache@v4
+        with:
+          path: tests/s3proxy.jar
+          key: s3proxy-3.0.0
+      - name: Download S3Proxy
+        if: steps.cache-s3proxy.outputs.cache-hit != 'true'
+        run: curl -sL -o tests/s3proxy.jar "https://repo1.maven.org/maven2/org/gaul/s3proxy/3.0.0/s3proxy-3.0.0-jar-with-dependencies.jar"
       - name: Run Electron tests
         run: |
-          yarn install-ext
-          yarn build-main
-          yarn build-e2e
-          yarn ${{ github.event.inputs.command }}
-      - uses: actions/upload-artifact@v2
+          npm run build-e2e
+          npm run ${{ github.event.inputs.command }}
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-pages
           path: tests/test-pages/
-      - uses: IgnusG/jest-report-action@v2.3.3
-        if: always() # Run regardless of whether other steps failed
-        with:
-          access-token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: tests
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-artifacts

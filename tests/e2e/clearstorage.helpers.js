@@ -1,14 +1,25 @@
-import { clickOn } from './general.helpers';
+// import { clickOn } from './general.helpers';
 
 export async function clearStorage() {
-  await global.client.pause(500);
-  await clickOn('[data-tid=settings]');
-  //await clickOn('[data-tid=settings]');
-  // const settingsDialog = await global.client.$('[data-tid=settingsDialog]');
-  // await settingsDialog.waitForDisplayed();
-  // await settingsDialog.click();
-  await global.client.pause(500);
-  await clickOn('[data-tid=resetSettingsTID]');
-  await clickOn('[data-tid=confirmResetSettingsDialogTID]');
-  return true;
+  // Clear cookies and local storage data
+  //await global.context.clearCookies();
+  //await global.client.clearStorageState();
+
+  if (global.client) {
+    // Evaluate JavaScript to clear local storage.
+    await global.client.evaluate(() => {
+      window.localStorage.clear();
+    });
+    await global.client.evaluate(() => {
+      window.sessionStorage.clear();
+    });
+    // Execute JavaScript to clear cookies.
+    await global.client.evaluate(() => {
+      document.cookie.split(';').forEach(function (c) {
+        document.cookie = c
+          .replace(/^ +/, '')
+          .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+      });
+    });
+  }
 }

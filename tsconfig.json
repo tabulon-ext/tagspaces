@@ -1,35 +1,45 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "target": "esnext", // es5
-    "baseUrl": "./",
-    "rootDir": "./",
-    "jsx": "react",
-    "module": "esnext", // esnext, commonjs
-    "moduleResolution": "node",
-    "noUnusedLocals": false,
-    "allowSyntheticDefaultImports": true,
-    "pretty": true,
+    "incremental": true,
+    "target": "es2022",
+    "ignoreDeprecations": "5.0",
+    "module": "CommonJS",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "jsx": "react-jsx",
+    //"strict": true,
     "sourceMap": true,
-    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "lib": ["esnext", "dom"], // "lib": ["es2015", "dom"],
+    "allowJs": true,
+    "outDir": ".erb/dll",
+
+    "noUnusedLocals": false,
+    "pretty": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "baseUrl": "./",
     "paths": {
-      "-/*": ["app/*"]
-    }
+      "-/*": ["src/renderer/*"],
+      "assets/*": ["assets/*"]
+    },
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["node"]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "app/node_modules/@tagspaces/pro/**/*.ts",
-    "app/node_modules/@tagspaces/pro/**/*.tsx"
+    "src/main/**/*.ts",
+    "src/renderer/**/*.ts",
+    "src/renderer/**/*.tsx",
+    "src/renderer/types",
+    "tagspacespro/**/*.ts",
+    "tagspacespro/**/*.tsx"
+  ],
+  "exclude": [
+    "test",
+    "release/build",
+    "release/app/dist",
+    ".erb/dll",
+    "capacitor"
   ]
-  // "exclude": [
-  //  "node_modules",
-  //  "**/node_modules/*",
-  //  "extensions",
-  //  "cordova",
-  //  "web",
-  //  "tests"
-  //]
 }

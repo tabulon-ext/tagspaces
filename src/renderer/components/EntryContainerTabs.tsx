@@ -1,0 +1,256 @@
+/**
+ * TagSpaces - universal file and folder organizer
+ * Copyright (C) 2017-present TagSpaces GmbH
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License (version 3) as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+import AppConfig from '-/AppConfig';
+import EntryContainerButtons from '-/components/EntryContainerButtons';
+import { ErrorBoundary } from '-/components/ErrorBoundary';
+import LoadingLazy from '-/components/LoadingLazy';
+import TsTabPanel from '-/components/TsTabPanel';
+import TsTooltip from '-/components/TsTooltip';
+import { TabItem, TabNames } from '-/hooks/EntryPropsTabsContextProvider';
+import { useChatContext } from '-/hooks/useChatContext';
+import { useEntryPropsTabsContext } from '-/hooks/useEntryPropsTabsContext';
+import { useOpenedEntryContext } from '-/hooks/useOpenedEntryContext';
+import { AppDispatch } from '-/reducers/app';
+import {
+  actions as SettingsActions,
+  getEntryContainerTab,
+  getMapTileServer,
+} from '-/reducers/settings';
+import { Badge, Box, Tab, Tabs, TabsProps } from '@mui/material';
+import { styled, useTheme } from '@mui/material/styles';
+import React, { useEffect, useReducer, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDispatch, useSelector } from 'react-redux';
+
+const TabProperties = React.lazy(
+  () => import(/* webpackChunkName: "EntryProperties" */ './EntryProperties'),
+);
+const TabDescription = React.lazy(
+  () => import(/* webpackChunkName: "EditDescription" */ './EditDescription'),
+);
+const TabRevisions = React.lazy(
+  () => import(/* webpackChunkName: "Revisions" */ './Revisions'),
+);
+const TabAI = React.lazy(
+  () => import(/* webpackChunkName: "ChatView" */ './chat/ChatView'),
+);
+const TabLinks = React.lazy(
+  () => import(/* webpackChunkName: "LinksTab" */ './LinksTab'),
+);
+
+interface EntryContainerTabsProps {
+  openPanel: () => void;
+  toggleProperties: () => void;
+  isPanelOpened: boolean;
+  isSavingInProgress: boolean;
+  savingFile: () => void;
+}
+
+function EntryContainerTabs(props: EntryContainerTabsProps) {
+  const {
+    openPanel,
+    toggleProperties,
+    isPanelOpened,
+    isSavingInProgress,
+    savingFile,
+  } = props;
+  const { t } = useTranslation();
+  const { initHistory, checkOllamaModels } = useChatContext();
+  const { getTabsArray } = useEntryPropsTabsContext();
+  const theme = useTheme();
+  const selectedTab: (typeof TabNames)[keyof typeof TabNames] =
+    useSelector(getEntryContainerTab);
+  const tileServer = useSelector(getMapTileServer);
+  const tabsArray = useRef<TabItem[]>([]);
+  const dispatch: AppDispatch = useDispatch();
+  const [ignored, forceUpdate] = useReducer((x: number) => x + 1, 0, undefined);
+  const { openedEntry } = useOpenedEntryContext();
+
+  useEffect(() => {
+    getTabsArray(openedEntry).then((tabs) => {
+      tabsArray.current = tabs;
+      forceUpdate();
+    });
+  }, [openedEntry]);
+
+  const StyledTabs = styled((props: TabsProps) => (
+    <Tabs
+      {...props}
+      slotProps={{
+        indicator: { children: <span className="MuiTabs-indicatorSpan" /> },
+      }}
+    />
+  ))({
+    '& .MuiTabs-indicator': {
+      display: 'flex',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
+    '& .MuiTabs-indicatorSpan': {
+      maxWidth: 55,
+      width: '100%',
+      backgroundColor: theme.palette.primary.main,
+    },
+  });
+
+  const handleChange = (event: React.SyntheticEvent, newValue: number) => {
+    if (tabsArray.current.length > 0) {
+      const tab = tabsArray.current[newValue];
+      if (tab && tab.name === TabNames.aiTab) {
+        checkOllamaModels().then(() => initHistory());
+      }
+      dispatch(SettingsActions.setEntryContainerTab(tab.name));
+      openPanel();
+      // console.log('tab changed to:' + newValue);
+    }
+  };
+
+  function handleTabClick(selectedTabIndex, index: number) {
+    if (
+      openedEntry.isFile &&
+      selectedTabIndex === index //parseInt(event.currentTarget.id.split('-')[1], 10)
+    ) {
+      // when selected tab is clicked...
+      dispatch(SettingsActions.setEntryContainerTab(TabNames.closedTabs));
+      toggleProperties();
+      console.log('tab click:' + index);
+    }
+  }
+
+  function getSelectedTabIndex() {
+    if (!isPanelOpened && openedEntry.isFile) {
+      return undefined;
+    }
+    const index = tabsArray.current.findIndex(
+      (tab) => tab.name === selectedTab,
+    );
+    if (index > -1) {
+      return index;
+    }
+    return 0;
+  }
+
+  const selectedTabIndex = getSelectedTabIndex();
+
+  function getTabContainer(tabName: string) {
+    if (tabName === TabNames.propertiesTab) {
+      return (
+        <TabProperties
+          key={openedEntry.uuid || openedEntry.path}
+          tileServer={tileServer}
+        />
+      );
+    } else if (tabName === TabNames.descriptionTab) {
+      return <TabDescription />;
+    } else if (tabName === TabNames.revisionsTab) {
+      return <TabRevisions />;
+    } else if (tabName === TabNames.aiTab) {
+      return <TabAI />;
+    } else if (tabName === TabNames.linksTab) {
+      return <TabLinks />;
+    }
+  }
+  if (tabsArray.current.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+        }}
+      >
+        <StyledTabs
+          value={selectedTabIndex}
+          onChange={handleChange}
+          variant="scrollable"
+          scrollButtons={false}
+          aria-label={t('core:tabsSwitcherAriaLabel')}
+        >
+          {tabsArray.current.map((tab, index) => (
+            <Tab
+              key={'key' + tab.name + index}
+              data-tid={tab.name + 'TID'}
+              icon={
+                <TsTooltip arrow={false} title={tab.badgeTooltip}>
+                  <Badge
+                    color="primary"
+                    variant="dot"
+                    invisible={!tab.showBadge}
+                    anchorOrigin={{
+                      vertical: 'top',
+                      horizontal: 'right',
+                    }}
+                  >
+                    {tab.icon}
+                  </Badge>
+                </TsTooltip>
+              }
+              label={tab.title}
+              sx={{
+                paddingLeft: 0,
+                paddingRight: 0,
+                fontSize: '11px',
+                fontWeight: 'normal',
+                textTransform: 'none',
+                paddingTop: '0px',
+                paddingBottom: '0px',
+                minHeight: '60px',
+                marginRight: '-8px',
+                borderRadius: AppConfig.defaultCSSRadius,
+                '&:hover': {
+                  backgroundColor: theme.palette.action.hover,
+                },
+              }}
+              id={`tab-${index}`}
+              aria-controls={`simple-tabpanel-${index}`}
+              onClick={() => handleTabClick(selectedTabIndex, index)}
+            />
+          ))}
+        </StyledTabs>
+        <EntryContainerButtons
+          isSavingInProgress={isSavingInProgress}
+          savingFile={savingFile}
+        />
+      </Box>
+      {tabsArray.current.map((tab, index) => (
+        <TsTabPanel key={tab.name} value={selectedTabIndex} index={index}>
+          {selectedTabIndex === index && (
+            <ErrorBoundary label={tab.name} resetKeys={[openedEntry?.path]}>
+              <React.Suspense fallback={<LoadingLazy />}>
+                {getTabContainer(tab.name)}
+              </React.Suspense>
+            </ErrorBoundary>
+          )}
+        </TsTabPanel>
+      ))}
+    </Box>
+  );
+}
+
+export default EntryContainerTabs;
